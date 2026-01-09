@@ -703,7 +703,7 @@
     // CONFIGURATION
     // ==========================================
     const API_PROXY = '/.netlify/functions/api-proxy';
-    // Ressource XLSX du Registre National des Cantines
+    // Ressource CSV du Registre National des Cantines (mis à jour 09/01/2026)
     const DATAGOUV_RESOURCE_ID = '3f73d129-6b24-45cd-95e9-9bacc216d9d9';
     const DATAGOUV_DATASET_ID = '6482def590d4cf8cea3aa33e';
 
@@ -1075,10 +1075,22 @@
       useEffect(() => {
         const fetchLastUpdate = async () => {
           try {
+            // Récupérer les infos depuis l'API tabulaire pour la date d'indexation
+            const tabularResponse = await fetch(`https://tabular-api.data.gouv.fr/api/resources/${DATAGOUV_RESOURCE_ID}/`);
+            if (tabularResponse.ok) {
+              const tabularData = await tabularResponse.json();
+              // L'API tabulaire retourne created_at qui correspond à la dernière indexation
+              if (tabularData.created_at) {
+                setLastUpdate(tabularData.created_at);
+                return;
+              }
+            }
+            
+            // Fallback sur l'API catalog
             const response = await fetch(`https://www.data.gouv.fr/api/1/datasets/${DATAGOUV_DATASET_ID}/`);
             if (response.ok) {
               const data = await response.json();
-              // Chercher la ressource XLSX
+              // Chercher la ressource CSV
               const resource = data.resources?.find(r => r.id === DATAGOUV_RESOURCE_ID);
               if (resource?.last_modified) {
                 setLastUpdate(resource.last_modified);
