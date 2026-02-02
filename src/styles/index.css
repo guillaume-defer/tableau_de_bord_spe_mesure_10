@@ -1,0 +1,409 @@
+/* ============================================
+   STYLES CUSTOM CONFORMES DSFR
+   Utilisation des variables CSS DSFR uniquement
+   ============================================ */
+
+/* Spinner de chargement */
+.spe-spinner {
+  display: inline-block;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 3px solid var(--border-default-grey);
+  border-top-color: var(--text-action-high-blue-france);
+  border-radius: 50%;
+  animation: spe-spin 1s linear infinite;
+}
+
+@keyframes spe-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Indicateurs KPI - Structure uniforme */
+.spe-stat-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4v);
+}
+
+.spe-stat-item {
+  padding: var(--spacing-4v);
+  background-color: var(--background-default-grey);
+  text-align: center;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+}
+
+.spe-stat-item--main {
+  min-height: 160px;
+}
+
+.spe-stat-item--alt {
+  background-color: var(--background-alt-grey);
+}
+
+.spe-stat-item--contrast {
+  background-color: var(--background-contrast-grey);
+}
+
+.spe-stat-item--raised {
+  background-color: var(--background-raised-grey);
+  box-shadow: var(--raised-shadow);
+}
+
+.spe-stat-item--accent {
+  background-color: var(--background-action-high-blue-france);
+  color: var(--text-inverted-grey);
+}
+
+.spe-stat-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: var(--spacing-2v) 0;
+}
+
+.spe-stat-value--success {
+  color: var(--text-default-success);
+}
+
+.spe-stat-value--warning {
+  color: var(--text-default-warning);
+}
+
+.spe-stat-value--error {
+  color: var(--text-default-error);
+}
+
+.spe-stat-label {
+  font-size: 0.875rem;
+  color: var(--text-mention-grey);
+}
+
+.spe-stat-detail {
+  font-size: 0.75rem;
+  color: var(--text-mention-grey);
+  margin-top: var(--spacing-1v);
+}
+
+/* Barre de progression EGalim style ma-cantine */
+.egalim-bar-container {
+  position: relative;
+  margin: 2rem 0 1rem 0;
+}
+
+.egalim-bar-objectives {
+  position: relative;
+  height: 3rem;
+  margin-bottom: 0.5rem;
+}
+
+.egalim-bar-objective {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.egalim-bar-objective::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 1.5rem;
+  width: 2px;
+  height: calc(3rem + 8px);
+  border-left: 2px dashed #18753c;
+}
+
+.egalim-bar {
+  position: relative;
+  height: 2.5rem;
+  background-color: #e8edff;
+  border: 2px solid #18753c;
+  border-radius: 4px;
+  overflow: visible;
+  display: flex;
+}
+
+.egalim-bar-bio {
+  height: 100%;
+  background: repeating-linear-gradient(90deg,
+      #18753c,
+      #18753c 8px,
+      #a3e2b8 8px,
+      #a3e2b8 16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 0.875rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  min-width: fit-content;
+  padding: 0 0.5rem;
+}
+
+.egalim-bar-qualite {
+  height: 100%;
+  background-color: #18753c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 0.875rem;
+  min-width: fit-content;
+  padding: 0 0.5rem;
+}
+
+.egalim-bar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-top: 1rem;
+  font-size: 0.875rem;
+}
+
+.egalim-bar-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.egalim-bar-legend-color {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.egalim-bar-legend-color--bio {
+  background: repeating-linear-gradient(90deg,
+      #18753c,
+      #18753c 4px,
+      #a3e2b8 4px,
+      #a3e2b8 8px);
+}
+
+.egalim-bar-legend-color--qualite {
+  background-color: #18753c;
+}
+
+.egalim-bar-legend-color--objectif {
+  width: 2px;
+  height: 1.25rem;
+  border-left: 2px dashed #18753c;
+  background: transparent;
+}
+
+/* Mode sombre - barre EGalim */
+[data-fr-theme="dark"] .egalim-bar,
+[data-fr-scheme="dark"] .egalim-bar {
+  background-color: #1e3a5f;
+  border-color: #34d399;
+}
+
+[data-fr-theme="dark"] .egalim-bar-bio,
+[data-fr-scheme="dark"] .egalim-bar-bio {
+  background: repeating-linear-gradient(90deg,
+      #059669,
+      #059669 8px,
+      #065f46 8px,
+      #065f46 16px);
+}
+
+[data-fr-theme="dark"] .egalim-bar-qualite,
+[data-fr-scheme="dark"] .egalim-bar-qualite {
+  background-color: #059669;
+}
+
+[data-fr-theme="dark"] .egalim-bar-objective::after,
+[data-fr-scheme="dark"] .egalim-bar-objective::after {
+  border-left-color: #34d399;
+}
+
+/* Tableau - Lignes colorées selon statut (couleurs lisibles) */
+.spe-row-error {
+  background-color: #fecaca !important;
+}
+
+.spe-row-warning {
+  background-color: #fef3c7 !important;
+}
+
+.spe-row-success {
+  background-color: #d1fae5 !important;
+}
+
+.spe-row-excluded {
+  background-color: var(--background-contrast-grey) !important;
+  color: var(--text-inverted-grey) !important;
+}
+
+/* Texte d'erreur visible sur fond clair */
+.spe-text-error {
+  color: #b91c1c !important;
+  font-weight: 500;
+}
+
+/* Graphiques custom (hors périmètre DSFR) */
+.spe-chart-container {
+  padding: var(--spacing-4v);
+  background-color: var(--background-default-grey);
+}
+
+.spe-chart-title {
+  font-weight: 700;
+  margin-bottom: var(--spacing-3v);
+  text-align: center;
+}
+
+.spe-chart-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-4v);
+  flex-wrap: wrap;
+}
+
+.spe-chart-legend {
+  flex: 1;
+  min-width: 150px;
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 0.8125rem;
+}
+
+.spe-chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: var(--spacing-1v);
+}
+
+.spe-chart-legend-color {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  margin-right: 0.25rem;
+}
+
+/* Utilitaires */
+.spe-text-mono {
+  font-family: monospace;
+  font-size: 0.75rem;
+}
+
+.spe-word-break {
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+/* Badge dans le titre du header */
+.fr-header__service-title .fr-badge {
+  vertical-align: middle;
+  margin-left: 0.5rem;
+}
+
+/* Mode sombre - adaptation des couleurs */
+[data-fr-theme="dark"] .spe-row-error,
+[data-fr-scheme="dark"] .spe-row-error {
+  background-color: #450a0a !important;
+  color: #fecaca !important;
+}
+
+[data-fr-theme="dark"] .spe-row-error td,
+[data-fr-scheme="dark"] .spe-row-error td {
+  color: #fecaca !important;
+}
+
+[data-fr-theme="dark"] .spe-row-warning,
+[data-fr-scheme="dark"] .spe-row-warning {
+  background-color: #451a03 !important;
+  color: #fef3c7 !important;
+}
+
+[data-fr-theme="dark"] .spe-row-warning td,
+[data-fr-scheme="dark"] .spe-row-warning td {
+  color: #fef3c7 !important;
+}
+
+[data-fr-theme="dark"] .spe-row-success,
+[data-fr-scheme="dark"] .spe-row-success {
+  background-color: #022c22 !important;
+  color: #d1fae5 !important;
+}
+
+[data-fr-theme="dark"] .spe-row-success td,
+[data-fr-scheme="dark"] .spe-row-success td {
+  color: #d1fae5 !important;
+}
+
+[data-fr-theme="dark"] .spe-text-error,
+[data-fr-scheme="dark"] .spe-text-error {
+  color: #fca5a5 !important;
+}
+
+[data-fr-theme="dark"] .spe-chart-container,
+[data-fr-scheme="dark"] .spe-chart-container {
+  background-color: var(--background-alt-grey);
+}
+
+/* Assurer que les icônes restent visibles en mode sombre */
+[data-fr-theme="dark"] .spe-row-error .fr-icon-warning-fill,
+[data-fr-scheme="dark"] .spe-row-error .fr-icon-warning-fill {
+  color: #fca5a5 !important;
+}
+
+[data-fr-theme="dark"] .spe-row-success .fr-icon-checkbox-circle-fill,
+[data-fr-scheme="dark"] .spe-row-success .fr-icon-checkbox-circle-fill {
+  color: #6ee7b7 !important;
+}
+
+/* Échantillons de couleur pour la légende */
+.spe-legend-color {
+  display: inline-block;
+  padding: 0 0.5rem;
+  border-radius: 2px;
+  font-weight: 500;
+}
+
+.spe-legend-color--error {
+  background-color: #fecaca;
+  color: #1f2937;
+}
+
+.spe-legend-color--warning {
+  background-color: #fef3c7;
+  color: #1f2937;
+}
+
+.spe-legend-color--success {
+  background-color: #d1fae5;
+  color: #1f2937;
+}
+
+/* Mode sombre - échantillons de couleur légende */
+[data-fr-theme="dark"] .spe-legend-color--error,
+[data-fr-scheme="dark"] .spe-legend-color--error {
+  background-color: #450a0a;
+  color: #fecaca;
+}
+
+[data-fr-theme="dark"] .spe-legend-color--warning,
+[data-fr-scheme="dark"] .spe-legend-color--warning {
+  background-color: #451a03;
+  color: #fef3c7;
+}
+
+[data-fr-theme="dark"] .spe-legend-color--success,
+[data-fr-scheme="dark"] .spe-legend-color--success {
+  background-color: #022c22;
+  color: #d1fae5;
+}

@@ -25,7 +25,7 @@ exports.handler = async (event) => {
   
   if (params.source === 'teledeclarations') {
     const year = params.td_year || '2024';
-    RESOURCE_IDS = [TD_RESOURCES[year] || TD_RESOURCES['2023']];
+    RESOURCE_IDS = [TD_RESOURCES[year] || TD_RESOURCES['2024']];
     delete params.source;
     delete params.td_year;
   } else {

@@ -1,0 +1,106 @@
+// ==========================================
+// CONFIGURATION
+// ==========================================
+export const API_PROXY = '/.netlify/functions/api-proxy';
+
+// Ressource CSV du Registre National des Cantines
+export const DATAGOUV_RESOURCE_ID = '3f73d129-6b24-45cd-95e9-9bacc216d9d9';
+export const DATAGOUV_DATASET_ID = '6482def590d4cf8cea3aa33e';
+
+// Liste des ministères
+export const MINISTERES = [
+  "Enseignement supérieur et Recherche",
+  "Intérieur et Outre-mer",
+  "Économie et finances",
+  "Agriculture, Alimentation et Forêts",
+  "Services du Premier Ministre",
+  "Justice",
+  "Sport",
+  "Environnement",
+  "Éducation et Jeunesse",
+  "Affaires étrangères",
+  "Travail",
+  "Culture",
+  "Fonction Publiques",
+  "Santé et Solidarités",
+  "Présidence de la république - Autorités indépendantes (AAI, API)",
+  "Cohésion des territoires - Relations avec les collectivités territoriales",
+  "Mer"
+];
+
+// Liste des régions
+export const REGIONS = [
+  "Île-de-France",
+  "Auvergne-Rhône-Alpes",
+  "Nouvelle-Aquitaine",
+  "Occitanie",
+  "Provence-Alpes-Côte d'Azur",
+  "Hauts-de-France",
+  "Pays de la Loire",
+  "Bretagne",
+  "Bourgogne-Franche-Comté",
+  "Grand Est",
+  "Normandie",
+  "Centre-Val de Loire",
+  "La Réunion",
+  "Corse",
+  "Martinique",
+  "Guadeloupe",
+  "Guyane",
+  "Mayotte"
+];
+
+// Couleurs pour les graphiques (palette DSFR illustrative)
+export const CHART_COLORS = [
+  '#000091', // Bleu France
+  '#6a6af4', // Bleu cumulé
+  '#009081', // Vert menthe
+  '#f95c5e', // Rouge marianne
+  '#ff9940', // Orange terre battue
+  '#a558a0', // Violet glycine
+  '#417dc4', // Bleu cumulus
+  '#66673d', // Vert bourgeon
+];
+
+// Cibles RIA DGAFP par région
+export const CIBLE_RIA_DGAFP = {
+  "Auvergne-Rhône-Alpes": 12,
+  "Bourgogne-Franche-Comté": 4,
+  "Bretagne": 5,
+  "Centre-Val de Loire": 6,
+  "Corse": 1,
+  "Grand Est": 12,
+  "Hauts-de-France": 4,
+  "Île-de-France": 7,
+  "Normandie": 7,
+  "Nouvelle-Aquitaine": 12,
+  "Occitanie": 9,
+  "Provence-Alpes-Côte d'Azur": 4,
+  "Pays de la Loire": 10
+};
+
+// Règles de classification SPE
+export const SPE_RULES = {
+  operateurs_etat: ['INSEE', 'DGFIP', 'DGDDI', 'douane', 'DDFIP', 'DRFIP', 'DREAL', 'DRAAF', 'DDT', 'DDTM', 'DRAC', 'DIRECCTE', 'DREETS', 'DDETS', 'ARS', 'DGAC', 'aviation civile'],
+  secteurs_etat: ['RIA', 'inter-administratif', 'administration', 'ministère', 'préfecture'],
+  siret_prefixes_etat: ['11', '12', '13', '17', '18', '19'],
+  codes_blanc: {
+    prefixes: ['71', '73', '74'],
+    exacts: ['4110', '4120', '4130', '4140', '4150', '4160', '8411', '8412', '8413']
+  },
+  codes_noir: {
+    prefixes: ['1', '2', '3', '5', '6', '8', '9'],
+    exacts: []
+  }
+};
+
+// Années de télédéclaration disponibles (ressources publiées sur data.gouv.fr)
+// Les données d'une année N sont publiées lors de la campagne N+1
+// Exemple: données 2024 publiées lors de la campagne 2025
+export const AVAILABLE_TD_YEARS = ['2021', '2022', '2023', '2024'];
+
+// Pagination API (limite max de l'API tabular data.gouv.fr = 50)
+export const API_PAGE_SIZE = 50;
+
+// Limite d'affichage initiale pour les performances
+export const INITIAL_DISPLAY_LIMIT = 100;
