@@ -59,12 +59,12 @@ export function App() {
   // ==========================================
   // VÉRIFICATION SIRET VIA API RECHERCHE ENTREPRISES
   // ==========================================
-  const checkSpeClassification = useCallback(async (rows) => {
+  const checkSpeClassification = async (rows) => {
     if (!rows || rows.length === 0) return;
 
     setCheckingSirets(true);
-    const classifications = { ...speClassification };
-    const uniqueSirets = [...new Set(rows.map(r => r.siret).filter(s => s && !classifications[s]))];
+    const classifications = {};
+    const uniqueSirets = [...new Set(rows.map(r => r.siret).filter(s => s))];
 
     for (let i = 0; i < uniqueSirets.length; i++) {
       const siret = uniqueSirets[i];
@@ -91,21 +91,21 @@ export function App() {
           classifications[siret] = classifyEstablishment(row, null);
         }
       } catch (err) {
-        // A4: Ajouter console.warn pour les erreurs
         console.warn('Erreur vérification SIRET:', siret, err);
         const row = rows.find(r => r.siret === siret);
         classifications[siret] = classifyEstablishment(row, null);
       }
 
+      // Mise à jour progressive toutes les 10 vérifications
       if (i % 10 === 0) {
-        setSpeClassification({ ...classifications });
+        setSpeClassification(prev => ({ ...prev, ...classifications }));
       }
     }
 
-    setSpeClassification(classifications);
+    setSpeClassification(prev => ({ ...prev, ...classifications }));
     setCheckingSirets(false);
     setCheckingProgress('');
-  }, [speClassification]);
+  };
 
   // ==========================================
   // CHARGEMENT DES DONNÉES
@@ -214,7 +214,8 @@ export function App() {
     };
 
     fetchData();
-  }, [mode, selectedMinistere, selectedRegion, checkSpeClassification]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, selectedMinistere, selectedRegion]);
 
   // Charger les télédéclarations après le chargement des données principales
   useEffect(() => {
