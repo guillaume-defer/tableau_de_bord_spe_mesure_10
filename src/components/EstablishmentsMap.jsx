@@ -12,21 +12,29 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-// Cache des coordonnées par code INSEE (persisté en sessionStorage)
-const COORDS_CACHE_KEY = 'spe_communes_coords';
+// Cache des coordonnées (persisté en sessionStorage)
+const SIRET_CACHE_KEY = 'spe_siret_coords';
+const INSEE_CACHE_KEY = 'spe_communes_coords';
 
-const getCoordsCacheFromStorage = () => {
+const getCacheFromStorage = (key) => {
   try {
-    const cached = sessionStorage.getItem(COORDS_CACHE_KEY);
+    const cached = sessionStorage.getItem(key);
     return cached ? JSON.parse(cached) : {};
   } catch {
     return {};
   }
 };
 
-const saveCoordsCache = (cache) => {
+const saveCache = (key, cache) => {
   try {
-    sessionStorage.setItem(COORDS_CACHE_KEY, JSON.stringify(cache));
+    // Limiter la taille du cache pour éviter de saturer sessionStorage
+    const entries = Object.entries(cache);
+    if (entries.length > 5000) {
+      const trimmed = Object.fromEntries(entries.slice(-4000));
+      sessionStorage.setItem(key, JSON.stringify(trimmed));
+    } else {
+      sessionStorage.setItem(key, JSON.stringify(cache));
+    }
   } catch {
     // Storage full, ignore
   }
@@ -76,11 +84,15 @@ const TERRITORIES = {
 const DOM_DEPT_CODES = ['971', '972', '973', '974', '976'];
 
 // Hook pour géocoder les établissements
+// Priorité 1: API Recherche Entreprises (précision adresse via SIRET)
+// Priorité 2: API Géo (centroïde commune via code INSEE)
 const useGeocodedEstablishments = (establishments) => {
   const [geocodedData, setGeocodedData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState('');
-  const coordsCache = useRef(getCoordsCacheFromStorage());
+  const [stats, setStats] = useState({ siret: 0, insee: 0, failed: 0 });
+  const siretCache = useRef(getCacheFromStorage(SIRET_CACHE_KEY));
+  const inseeCache = useRef(getCacheFromStorage(INSEE_CACHE_KEY));
 
   useEffect(() => {
     if (!establishments || establishments.length === 0) {
@@ -91,52 +103,151 @@ const useGeocodedEstablishments = (establishments) => {
     const geocodeAll = async () => {
       setLoading(true);
       const results = [];
-      const uniqueInseeCodes = [...new Set(establishments.map(e => e.city_insee_code).filter(Boolean))];
-      const codesToFetch = uniqueInseeCodes.filter(code => !coordsCache.current[code]);
+      let siretCount = 0;
+      let inseeCount = 0;
+      let failedCount = 0;
 
-      // Fetch missing coordinates in batches
-      if (codesToFetch.length > 0) {
-        const batchSize = 50;
-        for (let i = 0; i < codesToFetch.length; i += batchSize) {
-          const batch = codesToFetch.slice(i, i + batchSize);
-          setProgress(`Géocodage ${Math.min(i + batchSize, codesToFetch.length)}/${codesToFetch.length} communes...`);
+      // Étape 1: Identifier les SIRET à géocoder via API Recherche Entreprises
+      const siretsToFetch = [];
+      const inseeToFetch = new Set();
 
-          await Promise.all(batch.map(async (inseeCode) => {
-            try {
-              const response = await fetch(`https://geo.api.gouv.fr/communes/${inseeCode}?fields=centre`);
-              if (response.ok) {
-                const data = await response.json();
-                if (data.centre?.coordinates) {
-                  // API returns [lng, lat], Leaflet needs [lat, lng]
-                  coordsCache.current[inseeCode] = [data.centre.coordinates[1], data.centre.coordinates[0]];
-                }
-              }
-            } catch {
-              // Ignore geocoding errors
-            }
-          }));
-
-          // Small delay to avoid rate limiting
-          if (i + batchSize < codesToFetch.length) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-          }
-        }
-
-        // Save cache
-        saveCoordsCache(coordsCache.current);
-      }
-
-      // Map establishments to coordinates
       establishments.forEach(est => {
-        const coords = coordsCache.current[est.city_insee_code];
-        if (coords) {
-          results.push({
-            ...est,
-            coordinates: coords
-          });
+        const siret = est.siret?.toString().trim();
+        const insee = est.city_insee_code;
+
+        if (siret && siret.length === 14) {
+          if (!siretCache.current[siret]) {
+            siretsToFetch.push(siret);
+          }
+        } else if (insee && !inseeCache.current[insee]) {
+          inseeToFetch.add(insee);
         }
       });
 
+      // Étape 2: Géocoder par SIRET via API Recherche Entreprises
+      if (siretsToFetch.length > 0) {
+        const batchSize = 10; // API plus sensible au rate limiting
+        for (let i = 0; i < siretsToFetch.length; i += batchSize) {
+          const batch = siretsToFetch.slice(i, i + batchSize);
+          setProgress(`Géocodage SIRET ${Math.min(i + batchSize, siretsToFetch.length)}/${siretsToFetch.length}...`);
+
+          await Promise.all(batch.map(async (siret) => {
+            try {
+              const response = await fetch(
+                `https://recherche-entreprises.api.gouv.fr/search?q=${siret}&mtm_campaign=spe-dashboard`
+              );
+              if (response.ok) {
+                const data = await response.json();
+                const result = data.results?.[0];
+                // Chercher l'établissement correspondant au SIRET (siège ou établissement)
+                const siege = result?.siege;
+                if (siege?.latitude && siege?.longitude && siege.siret === siret) {
+                  siretCache.current[siret] = {
+                    coords: [parseFloat(siege.latitude), parseFloat(siege.longitude)],
+                    address: siege.geo_adresse || siege.adresse,
+                    precision: 'address'
+                  };
+                } else if (result?.matching_etablissements) {
+                  // Chercher dans les établissements correspondants
+                  const match = result.matching_etablissements.find(e => e.siret === siret);
+                  if (match?.latitude && match?.longitude) {
+                    siretCache.current[siret] = {
+                      coords: [parseFloat(match.latitude), parseFloat(match.longitude)],
+                      address: match.geo_adresse || match.adresse,
+                      precision: 'address'
+                    };
+                  }
+                }
+              }
+            } catch {
+              // Ignore errors, will fallback to INSEE
+            }
+          }));
+
+          // Délai pour éviter le rate limiting
+          if (i + batchSize < siretsToFetch.length) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        }
+        saveCache(SIRET_CACHE_KEY, siretCache.current);
+      }
+
+      // Étape 3: Identifier les codes INSEE manquants (SIRET non trouvés + établissements sans SIRET)
+      establishments.forEach(est => {
+        const siret = est.siret?.toString().trim();
+        const insee = est.city_insee_code;
+
+        if (siret && siret.length === 14 && !siretCache.current[siret]) {
+          // SIRET non trouvé, fallback sur INSEE
+          if (insee && !inseeCache.current[insee]) {
+            inseeToFetch.add(insee);
+          }
+        }
+      });
+
+      // Étape 4: Géocoder par code INSEE via API Géo
+      const inseeCodesToFetch = Array.from(inseeToFetch);
+      if (inseeCodesToFetch.length > 0) {
+        const batchSize = 50;
+        for (let i = 0; i < inseeCodesToFetch.length; i += batchSize) {
+          const batch = inseeCodesToFetch.slice(i, i + batchSize);
+          setProgress(`Géocodage communes ${Math.min(i + batchSize, inseeCodesToFetch.length)}/${inseeCodesToFetch.length}...`);
+
+          await Promise.all(batch.map(async (inseeCode) => {
+            try {
+              const response = await fetch(`https://geo.api.gouv.fr/communes/${inseeCode}?fields=centre,nom`);
+              if (response.ok) {
+                const data = await response.json();
+                if (data.centre?.coordinates) {
+                  inseeCache.current[inseeCode] = {
+                    coords: [data.centre.coordinates[1], data.centre.coordinates[0]],
+                    name: data.nom,
+                    precision: 'commune'
+                  };
+                }
+              }
+            } catch {
+              // Ignore errors
+            }
+          }));
+
+          if (i + batchSize < inseeCodesToFetch.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        }
+        saveCache(INSEE_CACHE_KEY, inseeCache.current);
+      }
+
+      // Étape 5: Assembler les résultats
+      establishments.forEach(est => {
+        const siret = est.siret?.toString().trim();
+        const insee = est.city_insee_code;
+        let geocoded = null;
+
+        // Priorité 1: Coordonnées SIRET (précision adresse)
+        if (siret && siret.length === 14 && siretCache.current[siret]) {
+          geocoded = siretCache.current[siret];
+          siretCount++;
+        }
+        // Priorité 2: Coordonnées INSEE (précision commune)
+        else if (insee && inseeCache.current[insee]) {
+          geocoded = inseeCache.current[insee];
+          inseeCount++;
+        }
+
+        if (geocoded) {
+          results.push({
+            ...est,
+            coordinates: geocoded.coords,
+            geocodeAddress: geocoded.address,
+            geocodePrecision: geocoded.precision
+          });
+        } else {
+          failedCount++;
+        }
+      });
+
+      setStats({ siret: siretCount, insee: inseeCount, failed: failedCount });
       setGeocodedData(results);
       setLoading(false);
       setProgress('');
@@ -145,7 +256,7 @@ const useGeocodedEstablishments = (establishments) => {
     geocodeAll();
   }, [establishments]);
 
-  return { geocodedData, loading, progress };
+  return { geocodedData, loading, progress, stats };
 };
 
 // Composant pour ajuster la vue de la carte
@@ -172,14 +283,11 @@ const MapBoundsHandler = ({ establishments, territory }) => {
 // Icône personnalisée pour les clusters
 const createClusterCustomIcon = (cluster) => {
   const count = cluster.getChildCount();
-  let size = 'small';
   let className = 'spe-marker-cluster-small';
 
   if (count >= 100) {
-    size = 'large';
     className = 'spe-marker-cluster-large';
   } else if (count >= 10) {
-    size = 'medium';
     className = 'spe-marker-cluster-medium';
   }
 
@@ -251,11 +359,30 @@ const TerritoryMap = ({ establishments, territory, config, isInset = false }) =>
                       <span className="fr-text--xs">SIRET: {est.siret}</span>
                     </>
                   )}
+                  {est.geocodeAddress && (
+                    <>
+                      <br />
+                      <span className="fr-text--xs" style={{ color: 'var(--text-mention-grey)' }}>
+                        {est.geocodeAddress}
+                      </span>
+                    </>
+                  )}
                   {est.sector_list && (
                     <>
                       <br />
                       <span className="fr-text--xs">{est.sector_list}</span>
                     </>
+                  )}
+                  {est.geocodePrecision && (
+                    <span
+                      className="fr-badge fr-badge--sm fr-mt-1v"
+                      style={{
+                        backgroundColor: est.geocodePrecision === 'address' ? 'var(--background-contrast-success)' : 'var(--background-contrast-info)',
+                        fontSize: '0.625rem'
+                      }}
+                    >
+                      {est.geocodePrecision === 'address' ? 'Adresse précise' : 'Centre commune'}
+                    </span>
                   )}
                 </div>
               </Popup>
@@ -270,7 +397,7 @@ const TerritoryMap = ({ establishments, territory, config, isInset = false }) =>
 
 // Composant principal de la carte
 export const EstablishmentsMap = ({ data, title = "Carte des établissements" }) => {
-  const { geocodedData, loading, progress } = useGeocodedEstablishments(data);
+  const { geocodedData, loading, progress, stats } = useGeocodedEstablishments(data);
 
   // Séparer les établissements par territoire
   const { metropoleCount, domCounts } = useMemo(() => {
@@ -328,7 +455,21 @@ export const EstablishmentsMap = ({ data, title = "Carte des établissements" })
             />
             <p className="fr-text--xs fr-mt-1w fr-mb-0" style={{ color: 'var(--text-mention-grey)' }}>
               {metropoleCount} établissement{metropoleCount > 1 ? 's' : ''} en métropole
-              {geocodedData.length < data.length && ` (${data.length - geocodedData.length} non géolocalisé${data.length - geocodedData.length > 1 ? 's' : ''})`}
+              {stats.siret > 0 && (
+                <span style={{ color: 'var(--text-default-success)' }}>
+                  {' '}• {stats.siret} géolocalisé{stats.siret > 1 ? 's' : ''} par adresse (SIRET)
+                </span>
+              )}
+              {stats.insee > 0 && (
+                <span style={{ color: 'var(--text-default-info)' }}>
+                  {' '}• {stats.insee} par commune
+                </span>
+              )}
+              {stats.failed > 0 && (
+                <span style={{ color: 'var(--text-mention-grey)' }}>
+                  {' '}• {stats.failed} non géolocalisé{stats.failed > 1 ? 's' : ''}
+                </span>
+              )}
             </p>
           </div>
 
