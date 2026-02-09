@@ -898,17 +898,28 @@ export function App() {
                   {loadingTD && <span className="fr-ml-2w"><span className="spe-spinner" style={{ width: '1rem', height: '1rem' }}></span> Chargement des télédéclarations...</span>}
                 </p>
               </div>
-              <div className="fr-col-auto">
-                <div className="fr-search-bar" role="search">
-                  <label className="fr-label fr-sr-only" htmlFor="search-table">Rechercher</label>
+              <div className="fr-col-12 fr-col-md-auto">
+                <div className="fr-search-bar" id="search-etablissements" role="search">
+                  <label className="fr-label" htmlFor="search-table">
+                    Rechercher un établissement
+                  </label>
                   <input
                     className="fr-input"
-                    placeholder="Rechercher..."
+                    placeholder="Nom, SIRET ou ville..."
                     type="search"
                     id="search-table"
+                    name="search-table"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
+                  <button
+                    className="fr-btn"
+                    type="button"
+                    title="Rechercher"
+                    aria-label="Rechercher"
+                  >
+                    Rechercher
+                  </button>
                 </div>
               </div>
             </div>
