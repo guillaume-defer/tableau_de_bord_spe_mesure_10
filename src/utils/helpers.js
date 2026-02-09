@@ -59,6 +59,8 @@ export const normalizeFilename = (str) => {
 };
 
 // Classification SPE d'un établissement
+// Retourne: 'BLANC' (SPE confirmé) ou 'ORANGE' (à vérifier)
+// Note: La catégorie NOIR a été supprimée pour éviter les faux positifs
 export const classifyEstablishment = (row, apiEntrepriseData) => {
   if (!row) return 'ORANGE';
 
@@ -68,55 +70,70 @@ export const classifyEstablishment = (row, apiEntrepriseData) => {
   const normalizedName = normalizeString(row.name || '');
   const lineMinistry = row.line_ministry || '';
 
+  // Récupérer la catégorie juridique depuis l'API entreprise
   let cj = '';
   if (apiEntrepriseData && apiEntrepriseData.categorie_juridique) {
-    cj = apiEntrepriseData.categorie_juridique || '';
+    cj = apiEntrepriseData.categorie_juridique.toString();
   }
 
-  // AFPA = toujours SPE (établissement public de l'État)
+  // Code 72 = Collectivités territoriales → toujours à vérifier (pas SPE)
+  if (cj.startsWith('72')) return 'ORANGE';
+
+  // ==========================================
+  // RÈGLES BLANC (SPE confirmé)
+  // ==========================================
+
+  // 1. AFPA = établissement public de l'État
   const isAFPA = normalizedName.includes('afpa') ||
-    normalizedName.includes('agence nationale pour la formation professionnelle');
+    normalizedName.includes('agence nationale pour la formation professionnelle des adultes');
   if (isAFPA) return 'BLANC';
 
-  // Justice : établissements pénitentiaires et mess = SPE
+  // 2. Justice : établissements pénitentiaires et mess
   if (lineMinistry === 'Justice') {
-    const justicePatterns = [
-      /\bcp\b/i,
-      /\bcd\b/i,
-      /\bma\b/i,
-      /\bmess\b/i,
-      /maison\s*d['']?\s*arr[eê]t/i
-    ];
-    const isJusticeSPE = justicePatterns.some(pattern => pattern.test(row.name || ''));
-    if (isJusticeSPE) return 'BLANC';
+    // Vérifier les patterns textuels
+    const hasJusticePattern = SPE_RULES.justice_patterns.some(pattern =>
+      normalizedName.includes(normalizeString(pattern))
+    );
+    if (hasJusticePattern) return 'BLANC';
+
+    // Vérifier les acronymes (avec délimiteurs de mots)
+    const hasJusticeAcronym = SPE_RULES.justice_acronyms.some(acronym => {
+      const regex = new RegExp(`\\b${acronym}\\b`, 'i');
+      return regex.test(row.name || '');
+    });
+    if (hasJusticeAcronym) return 'BLANC';
   }
 
+  // 3. Opérateurs de l'État reconnus
   const hasOperatorMatch = SPE_RULES.operateurs_etat.some(op =>
     normalizedSecteur.includes(normalizeString(op)) ||
     normalizedName.includes(normalizeString(op))
   );
+  if (hasOperatorMatch) return 'BLANC';
 
-  const hasRiaMatch = normalizedSecteur.includes('ria') || normalizedSecteur.includes('inter-administratif');
-  const hasEtatMatch = normalizedSecteur.includes('etat') || normalizedSecteur.includes('état');
+  // 4. Secteur RIA ou inter-administratif
+  const hasRiaMatch = normalizedSecteur.includes('ria') ||
+    normalizedSecteur.includes('inter-administratif');
+  if (hasRiaMatch) return 'BLANC';
 
-  // Fix A9: Ajouter hasEtatMatch dans la condition ORANGE pour code 72
-  if ((hasOperatorMatch || hasRiaMatch || hasEtatMatch) && cj.startsWith('72')) return 'ORANGE';
-  if (hasOperatorMatch || hasRiaMatch || hasEtatMatch) return 'BLANC';
-
+  // 5. Préfixe SIRET de l'État (11, 17, 18, 19)
   const isSiretEtat = SPE_RULES.siret_prefixes_etat.some(p => siret.startsWith(p));
-  if (isSiretEtat && !cj.startsWith('72')) return 'BLANC';
+  if (isSiretEtat) return 'BLANC';
 
-  const isSecteurEtat = SPE_RULES.secteurs_etat.some(s => normalizedSecteur.includes(normalizeString(s)));
-  if (isSecteurEtat && !cj.startsWith('72')) return 'BLANC';
+  // 6. Secteur clairement État
+  const isSecteurEtat = SPE_RULES.secteurs_etat.some(s =>
+    normalizedSecteur.includes(normalizeString(s))
+  );
+  if (isSecteurEtat) return 'BLANC';
 
+  // 7. Code nature juridique SPE
   const isCodeBlanc = SPE_RULES.codes_blanc.prefixes.some(p => cj.startsWith(p)) ||
     SPE_RULES.codes_blanc.exacts.includes(cj);
   if (isCodeBlanc) return 'BLANC';
 
-  const isCodeNoir = SPE_RULES.codes_noir.prefixes.some(p => cj.startsWith(p)) ||
-    SPE_RULES.codes_noir.exacts.includes(cj);
-  if (isCodeNoir) return 'NOIR';
-
+  // ==========================================
+  // Par défaut: à vérifier
+  // ==========================================
   return 'ORANGE';
 };
 

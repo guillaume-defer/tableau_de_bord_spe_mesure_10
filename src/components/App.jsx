@@ -371,11 +371,6 @@ export function App() {
       icon: 'fr-icon-checkbox-circle-fill',
       color: 'var(--text-default-success)'
     };
-    if (speClass === 'NOIR') return {
-      text: 'Hors périmètre SPE',
-      icon: 'fr-icon-close-circle-fill',
-      color: 'var(--text-mention-grey)'
-    };
     if (speClass === 'ORANGE') return {
       text: 'Classification à vérifier',
       icon: 'fr-icon-question-fill',
@@ -448,11 +443,12 @@ export function App() {
 
   // Stats SPE
   const speStats = useMemo(() => {
-    const stats = { BLANC: 0, NOIR: 0, ORANGE: 0, INCONNU: 0 };
+    const stats = { BLANC: 0, ORANGE: 0, INCONNU: 0 };
     filteredData.forEach(row => {
       const siret = row.siret ? row.siret.toString().trim() : '';
       const classification = speClassification[siret];
-      if (classification) stats[classification]++;
+      if (classification === 'BLANC') stats.BLANC++;
+      else if (classification === 'ORANGE') stats.ORANGE++;
       else stats.INCONNU++;
     });
     return stats;
@@ -507,9 +503,6 @@ export function App() {
 
   // Style de ligne tableau
   const getRowClassName = useCallback((row) => {
-    const speClass = getSpeClass(row);
-    if (speClass === 'NOIR') return 'spe-row-excluded';
-
     const hasError = !isTrueValue(row.active_on_ma_cantine) ||
       isMissing(row.siret) || isMissing(row.name) ||
       isMissing(row.daily_meal_count) || isMissing(row.production_type) ||
@@ -524,26 +517,25 @@ export function App() {
     if (selectedYear) return 'spe-row-warning';
 
     return '';
-  }, [getSpeClass, selectedYear]);
+  }, [selectedYear]);
 
-  // Fonction de priorité de tri
+  // Fonction de priorité de tri (erreurs en premier, puis à vérifier, puis OK)
   const getRowSortPriority = useCallback((row) => {
-    const speClass = getSpeClass(row);
-    if (speClass === 'NOIR') return 1;
-    if (speClass === 'ORANGE') return 2;
-
     const hasError = !isTrueValue(row.active_on_ma_cantine) ||
       isMissing(row.siret) || isMissing(row.name) ||
       isMissing(row.daily_meal_count) || isMissing(row.production_type) ||
       isMissing(row.management_type) || isMissing(row.economic_model) ||
       (row.economic_model && row.economic_model !== 'public') ||
       hasMultipleSectors(row.sector_list);
-    if (hasError) return 3;
+    if (hasError) return 1;
+
+    const speClass = getSpeClass(row);
+    if (speClass === 'ORANGE') return 2;
 
     const hasTD = selectedYear && hasTeledeclaration(row, selectedYear);
-    if (!hasTD && selectedYear) return 4;
+    if (!hasTD && selectedYear) return 3;
 
-    return 5;
+    return 4;
   }, [getSpeClass, selectedYear]);
 
   // Données triées par priorité
@@ -867,7 +859,6 @@ export function App() {
                   <p className="fr-mb-1w"><strong>Colonne SPE :</strong></p>
                   <ul>
                     <li><span className="fr-icon-checkbox-circle-fill fr-icon--sm fr-mr-1v" style={{ color: 'var(--text-default-success)' }} aria-hidden="true"></span> Établissement SPE</li>
-                    <li><span className="fr-icon-close-circle-fill fr-icon--sm fr-mr-1v" style={{ color: 'var(--text-mention-grey)' }} aria-hidden="true"></span> Hors périmètre SPE</li>
                     <li><span className="fr-icon-question-fill fr-icon--sm fr-mr-1v" style={{ color: 'var(--text-default-warning)' }} aria-hidden="true"></span> À vérifier</li>
                   </ul>
                 </div>
@@ -878,22 +869,28 @@ export function App() {
               <div className="fr-callout" style={{ flex: 1, marginBottom: 0 }}>
                 <p className="fr-callout__title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   Classification SPE
+                  <button
+                    className="fr-btn--tooltip fr-btn"
+                    type="button"
+                    aria-describedby="tooltip-spe-info"
+                    style={{ padding: 0, minHeight: 'auto', background: 'none' }}
+                  >
+                    <span className="fr-icon-question-line fr-icon--sm" aria-hidden="true"></span>
+                    <span className="fr-sr-only">Information sur la classification</span>
+                  </button>
+                  <span className="fr-tooltip fr-placement" id="tooltip-spe-info" role="tooltip" aria-hidden="true">
+                    Cette classification est donnée à titre indicatif.
+                  </span>
                 </p>
                 <div className="fr-callout__text">
                   <div className="fr-grid-row fr-grid-row--gutters">
-                    <div className="fr-col-4" style={{ textAlign: 'center' }}>
-                      <p className="spe-stat-label">SPE</p>
+                    <div className="fr-col-6" style={{ textAlign: 'center' }}>
+                      <p className="spe-stat-label">SPE confirmé</p>
                       <p className="spe-stat-value spe-stat-value--success">
                         <span className="fr-icon-checkbox-circle-fill fr-icon--sm fr-mr-1v" aria-hidden="true"></span>{speStats.BLANC}
                       </p>
                     </div>
-                    <div className="fr-col-4" style={{ textAlign: 'center' }}>
-                      <p className="spe-stat-label">Hors SPE</p>
-                      <p className="spe-stat-value">
-                        <span className="fr-icon-close-circle-fill fr-icon--sm fr-mr-1v" aria-hidden="true"></span>{speStats.NOIR}
-                      </p>
-                    </div>
-                    <div className="fr-col-4" style={{ textAlign: 'center' }}>
+                    <div className="fr-col-6" style={{ textAlign: 'center' }}>
                       <p className="spe-stat-label">À vérifier</p>
                       <p className="spe-stat-value spe-stat-value--warning">
                         <span className="fr-icon-question-fill fr-icon--sm fr-mr-1v" aria-hidden="true"></span>{speStats.ORANGE}
