@@ -79,19 +79,66 @@ export const CIBLE_RIA_DGAFP = {
   "Pays de la Loire": 10
 };
 
-// Règles de classification SPE
+// Règles de classification SPE (Services Publics de l'État)
+// Documentation: https://www.economie.gouv.fr/daj/services-publics-etat
 export const SPE_RULES = {
-  operateurs_etat: ['INSEE', 'DGFIP', 'DGDDI', 'douane', 'DDFIP', 'DRFIP', 'DREAL', 'DRAAF', 'DDT', 'DDTM', 'DRAC', 'DIRECCTE', 'DREETS', 'DDETS', 'ARS', 'DGAC', 'aviation civile'],
-  secteurs_etat: ['RIA', 'inter-administratif', 'administration', 'ministère', 'préfecture'],
-  siret_prefixes_etat: ['11', '12', '13', '17', '18', '19'],
+  // Opérateurs de l'État connus
+  operateurs_etat: [
+    'INSEE', 'DGFIP', 'DGDDI', 'douane', 'DDFIP', 'DRFIP',
+    'DREAL', 'DRAAF', 'DDT', 'DDTM', 'DRAC', 'DIRECCTE',
+    'DREETS', 'DDETS', 'ARS', 'DGAC', 'aviation civile',
+    'gendarmerie', 'police nationale', 'CRS'
+  ],
+
+  // Secteurs clairement liés à l'État (termes spécifiques pour éviter les faux positifs)
+  secteurs_etat: [
+    'RIA',
+    'inter-administratif',
+    'administration centrale',
+    'administration de l\'etat',
+    'ministere',
+    'prefecture',
+    'sous-prefecture'
+  ],
+
+  // Préfixes SIRET de l'État (sans 12 = collectivités territoriales)
+  // 11: État central, 17-19: autres services de l'État
+  siret_prefixes_etat: ['11', '17', '18', '19'],
+
+  // Codes nature juridique clairement SPE
   codes_blanc: {
+    // 71xx: État et établissements publics nationaux
+    // 73xx: Établissements publics nationaux à caractère scientifique
+    // 74xx: Autres établissements publics nationaux
     prefixes: ['71', '73', '74'],
-    exacts: ['4110', '4120', '4130', '4140', '4150', '4160', '8411', '8412', '8413']
+    exacts: [
+      // Syndicats intercommunaux de l'État
+      '4110', '4120', '4130', '4140', '4150', '4160',
+      // Administrations publiques
+      '8411', '8412', '8413',
+      // Codes spécifiques État
+      '7112', // Autorité constitutionnelle
+      '7120', // Services centraux des ministères
+      '7150', // Services déconcentrés de l'État
+      '7160'  // Autorités administratives indépendantes
+    ]
   },
-  codes_noir: {
-    prefixes: ['1', '2', '3', '5', '6', '8', '9'],
-    exacts: []
-  }
+
+  // Patterns pour établissements Justice
+  justice_patterns: [
+    'centre penitentiaire',
+    'centre de detention',
+    'maison d\'arret',
+    'maison d arret',
+    'etablissement penitentiaire',
+    'maison centrale',
+    'centre de semi-liberte',
+    'etablissement pour mineurs',
+    'mess'
+  ],
+
+  // Acronymes Justice (avec délimiteurs de mots)
+  justice_acronyms: ['cp', 'cd', 'ma', 'mc', 'csl', 'epm']
 };
 
 // Années de télédéclaration disponibles (colonnes présentes dans le registre des cantines)
