@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { PieChart } from './PieChart';
+import { EstablishmentsMap } from './EstablishmentsMap';
 import { useDebounce } from '../hooks/useDebounce';
 import {
   API_PROXY,
@@ -112,27 +113,32 @@ export function App() {
   // CHARGEMENT DES DONNÉES
   // ==========================================
 
-  // Date de mise à jour
+  // Date de mise à jour (utiliser last_update du dataset, pas created_at de la ressource tabular)
   useEffect(() => {
     const fetchLastUpdate = async () => {
       try {
+        // Priorité 1: Date de mise à jour du dataset (reflète la dernière MAJ de n'importe quelle ressource)
+        const response = await fetch(`https://www.data.gouv.fr/api/1/datasets/${DATAGOUV_DATASET_ID}/`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.last_update) {
+            setLastUpdate(data.last_update);
+            return;
+          }
+          // Fallback: last_modified de la ressource spécifique
+          const resource = data.resources?.find(r => r.id === DATAGOUV_RESOURCE_ID);
+          if (resource?.last_modified) {
+            setLastUpdate(resource.last_modified);
+            return;
+          }
+        }
+
+        // Fallback: created_at de l'API tabular (moins fiable)
         const tabularResponse = await fetch(`https://tabular-api.data.gouv.fr/api/resources/${DATAGOUV_RESOURCE_ID}/`);
         if (tabularResponse.ok) {
           const tabularData = await tabularResponse.json();
           if (tabularData.created_at) {
             setLastUpdate(tabularData.created_at);
-            return;
-          }
-        }
-
-        const response = await fetch(`https://www.data.gouv.fr/api/1/datasets/${DATAGOUV_DATASET_ID}/`);
-        if (response.ok) {
-          const data = await response.json();
-          const resource = data.resources?.find(r => r.id === DATAGOUV_RESOURCE_ID);
-          if (resource?.last_modified) {
-            setLastUpdate(resource.last_modified);
-          } else if (data.last_update) {
-            setLastUpdate(data.last_update);
           }
         }
       } catch (e) {
@@ -807,6 +813,12 @@ export function App() {
               </div>
             )}
           </div>
+
+          {/* Carte des établissements */}
+          <EstablishmentsMap
+            data={filteredData}
+            title="Localisation des établissements"
+          />
 
           {/* Légende et Classification SPE */}
           <div className="fr-grid-row fr-grid-row--gutters fr-mb-4w" style={{ alignItems: 'stretch' }}>
