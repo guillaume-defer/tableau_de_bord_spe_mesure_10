@@ -1,16 +1,71 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
-import MarkerClusterGroup from 'react-leaflet-cluster';
+import { useState, useEffect, useMemo, useRef, Component } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Fix for default marker icons in React-Leaflet
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-});
+// Fix for default marker icons in React-Leaflet (wrapped in try-catch for safety)
+try {
+  delete L.Icon.Default.prototype._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+  });
+} catch {
+  // Ignore errors during icon setup
+}
+
+// Error boundary pour capturer les erreurs de la carte
+class MapErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('Map error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="fr-callout fr-mb-2w" style={{ padding: '1rem' }}>
+          <p className="fr-callout__title">Carte non disponible</p>
+          <p className="fr-mb-0">La carte n'a pas pu être chargée. Les données restent accessibles dans le tableau ci-dessous.</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// Lazy import des composants react-leaflet pour éviter les erreurs SSR/initialisation
+let MapContainer, TileLayer, Marker, Popup, useMap, MarkerClusterGroup;
+let leafletImported = false;
+
+const importLeafletComponents = async () => {
+  if (leafletImported) return true;
+  try {
+    const reactLeaflet = await import('react-leaflet');
+    MapContainer = reactLeaflet.MapContainer;
+    TileLayer = reactLeaflet.TileLayer;
+    Marker = reactLeaflet.Marker;
+    Popup = reactLeaflet.Popup;
+    useMap = reactLeaflet.useMap;
+
+    const cluster = await import('react-leaflet-cluster');
+    MarkerClusterGroup = cluster.default;
+
+    leafletImported = true;
+    return true;
+  } catch (error) {
+    console.error('Failed to import leaflet components:', error);
+    return false;
+  }
+};
 
 // Cache des coordonnées (persisté en sessionStorage)
 const SIRET_CACHE_KEY = 'spe_siret_coords';
@@ -259,25 +314,31 @@ const useGeocodedEstablishments = (establishments) => {
   return { geocodedData, loading, progress, stats };
 };
 
-// Composant pour ajuster la vue de la carte
-const MapBoundsHandler = ({ establishments, territory }) => {
-  const map = useMap();
+// Composant pour ajuster la vue de la carte (créé dynamiquement après import)
+const createMapBoundsHandler = (useMapFn) => {
+  return function MapBoundsHandler({ establishments, territory }) {
+    const map = useMapFn();
 
-  useEffect(() => {
-    if (territory === 'metropole' && establishments.length > 0) {
-      const metroEstablishments = establishments.filter(e => {
-        const dept = e.department?.toString().padStart(2, '0');
-        return dept && !DOM_DEPT_CODES.includes(dept);
-      });
+    useEffect(() => {
+      if (territory === 'metropole' && establishments.length > 0) {
+        try {
+          const metroEstablishments = establishments.filter(e => {
+            const dept = e.department?.toString().padStart(2, '0');
+            return dept && !DOM_DEPT_CODES.includes(dept);
+          });
 
-      if (metroEstablishments.length > 0) {
-        const bounds = L.latLngBounds(metroEstablishments.map(e => e.coordinates));
-        map.fitBounds(bounds, { padding: [20, 20], maxZoom: 10 });
+          if (metroEstablishments.length > 0) {
+            const bounds = L.latLngBounds(metroEstablishments.map(e => e.coordinates));
+            map.fitBounds(bounds, { padding: [20, 20], maxZoom: 10 });
+          }
+        } catch {
+          // Ignore bounds errors
+        }
       }
-    }
-  }, [map, establishments, territory]);
+    }, [map, establishments, territory]);
 
-  return null;
+    return null;
+  };
 };
 
 // Icône personnalisée pour les clusters
@@ -299,7 +360,9 @@ const createClusterCustomIcon = (cluster) => {
 };
 
 // Carte d'un territoire (métropole ou DOM)
-const TerritoryMap = ({ establishments, territory, config, isInset = false }) => {
+const TerritoryMap = ({ establishments, territory, config, isInset = false, components }) => {
+  const { MapContainerCmp, TileLayerCmp, MarkerCmp, PopupCmp, MarkerClusterGroupCmp, MapBoundsHandlerCmp } = components;
+
   const filteredEstablishments = useMemo(() => {
     if (territory === 'metropole') {
       return establishments.filter(e => {
@@ -326,7 +389,7 @@ const TerritoryMap = ({ establishments, territory, config, isInset = false }) =>
           {config.name} ({filteredEstablishments.length})
         </p>
       )}
-      <MapContainer
+      <MapContainerCmp
         center={config.center}
         zoom={config.zoom}
         style={mapStyle}
@@ -335,11 +398,11 @@ const TerritoryMap = ({ establishments, territory, config, isInset = false }) =>
         zoomControl={!isInset}
         attributionControl={!isInset}
       >
-        <TileLayer
+        <TileLayerCmp
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <MarkerClusterGroup
+        <MarkerClusterGroupCmp
           chunkedLoading
           iconCreateFunction={createClusterCustomIcon}
           maxClusterRadius={isInset ? 30 : 50}
@@ -347,8 +410,8 @@ const TerritoryMap = ({ establishments, territory, config, isInset = false }) =>
           showCoverageOnHover={false}
         >
           {filteredEstablishments.map((est, idx) => (
-            <Marker key={est.id || idx} position={est.coordinates}>
-              <Popup>
+            <MarkerCmp key={est.id || idx} position={est.coordinates}>
+              <PopupCmp>
                 <div style={{ minWidth: '200px' }}>
                   <strong>{est.name || 'Sans nom'}</strong>
                   <br />
@@ -385,18 +448,18 @@ const TerritoryMap = ({ establishments, territory, config, isInset = false }) =>
                     </span>
                   )}
                 </div>
-              </Popup>
-            </Marker>
+              </PopupCmp>
+            </MarkerCmp>
           ))}
-        </MarkerClusterGroup>
-        {!isInset && <MapBoundsHandler establishments={establishments} territory={territory} />}
-      </MapContainer>
+        </MarkerClusterGroupCmp>
+        {!isInset && <MapBoundsHandlerCmp establishments={establishments} territory={territory} />}
+      </MapContainerCmp>
     </div>
   );
 };
 
-// Composant principal de la carte
-export const EstablishmentsMap = ({ data, title = "Carte des établissements" }) => {
+// Composant interne de la carte (après chargement des composants Leaflet)
+const EstablishmentsMapInner = ({ data, title, components }) => {
   const { geocodedData, loading, progress, stats } = useGeocodedEstablishments(data);
 
   // Séparer les établissements par territoire
@@ -421,14 +484,8 @@ export const EstablishmentsMap = ({ data, title = "Carte des établissements" })
 
   const hasDOM = Object.values(domCounts).some(count => count > 0);
 
-  if (data.length === 0) {
-    return null;
-  }
-
   return (
-    <div className="fr-mb-4w">
-      <h3 className="fr-h6 fr-mb-2w">{title}</h3>
-
+    <>
       {loading && (
         <div className="fr-callout fr-callout--brown-caramel fr-mb-2w" style={{ padding: '1rem' }}>
           <p className="fr-mb-0">
@@ -452,6 +509,7 @@ export const EstablishmentsMap = ({ data, title = "Carte des établissements" })
               establishments={geocodedData}
               territory="metropole"
               config={TERRITORIES.metropole}
+              components={components}
             />
             <p className="fr-text--xs fr-mt-1w fr-mb-0" style={{ color: 'var(--text-mention-grey)' }}>
               {metropoleCount} établissement{metropoleCount > 1 ? 's' : ''} en métropole
@@ -485,6 +543,7 @@ export const EstablishmentsMap = ({ data, title = "Carte des établissements" })
                     establishments={geocodedData}
                     territory={key}
                     config={config}
+                    components={components}
                     isInset
                   />
                 );
@@ -492,6 +551,78 @@ export const EstablishmentsMap = ({ data, title = "Carte des établissements" })
             </div>
           )}
         </div>
+      )}
+    </>
+  );
+};
+
+// Composant principal de la carte avec chargement dynamique et error boundary
+export const EstablishmentsMap = ({ data, title = "Carte des établissements" }) => {
+  const [leafletReady, setLeafletReady] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [components, setComponents] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadLeaflet = async () => {
+      try {
+        const success = await importLeafletComponents();
+        if (mounted && success) {
+          setComponents({
+            MapContainerCmp: MapContainer,
+            TileLayerCmp: TileLayer,
+            MarkerCmp: Marker,
+            PopupCmp: Popup,
+            MarkerClusterGroupCmp: MarkerClusterGroup,
+            MapBoundsHandlerCmp: createMapBoundsHandler(useMap)
+          });
+          setLeafletReady(true);
+        } else if (mounted) {
+          setLoadError(true);
+        }
+      } catch {
+        if (mounted) {
+          setLoadError(true);
+        }
+      }
+    };
+
+    loadLeaflet();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (data.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="fr-mb-4w">
+      <h3 className="fr-h6 fr-mb-2w">{title}</h3>
+
+      {loadError && (
+        <div className="fr-callout fr-mb-2w" style={{ padding: '1rem' }}>
+          <p className="fr-callout__title">Carte non disponible</p>
+          <p className="fr-mb-0">La carte n'a pas pu être chargée. Les données restent accessibles dans le tableau ci-dessous.</p>
+        </div>
+      )}
+
+      {!loadError && !leafletReady && (
+        <div className="fr-callout fr-callout--brown-caramel fr-mb-2w" style={{ padding: '1rem' }}>
+          <p className="fr-mb-0">
+            <span className="spe-spinner fr-mr-2w" style={{ width: '1rem', height: '1rem' }} aria-hidden="true"></span>
+            Chargement de la carte...
+          </p>
+        </div>
+      )}
+
+      {leafletReady && components && (
+        <MapErrorBoundary>
+          <EstablishmentsMapInner data={data} title={title} components={components} />
+        </MapErrorBoundary>
       )}
     </div>
   );
