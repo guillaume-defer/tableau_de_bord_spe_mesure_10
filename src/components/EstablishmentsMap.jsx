@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, Component } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { DOM_DEPT_CODES } from '../utils/constants';
 
 // Fix for default marker icons in React-Leaflet (wrapped in try-catch for safety)
 try {
@@ -100,8 +101,7 @@ const TERRITORIES = {
   metropole: {
     name: 'France métropolitaine',
     center: [46.603354, 1.888334],
-    zoom: 5,
-    bounds: [[41.0, -5.5], [51.5, 10.0]]
+    zoom: 5
   },
   guadeloupe: {
     name: 'Guadeloupe',
@@ -135,9 +135,6 @@ const TERRITORIES = {
   }
 };
 
-// Codes départements outre-mer
-const DOM_DEPT_CODES = ['971', '972', '973', '974', '976'];
-
 // Hook pour géocoder les établissements
 // Priorité 1: API Recherche Entreprises (précision adresse via SIRET)
 // Priorité 2: API Géo (centroïde commune via code INSEE)
@@ -146,17 +143,28 @@ const useGeocodedEstablishments = (establishments) => {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState('');
   const [stats, setStats] = useState({ siret: 0, insee: 0, failed: 0 });
+  const [geocodingError, setGeocodingError] = useState(null);
   const siretCache = useRef(getCacheFromStorage(SIRET_CACHE_KEY));
   const inseeCache = useRef(getCacheFromStorage(INSEE_CACHE_KEY));
+  const abortControllerRef = useRef(null);
 
   useEffect(() => {
     if (!establishments || establishments.length === 0) {
       setGeocodedData([]);
+      setGeocodingError(null);
       return;
     }
 
+    // Annuler le géocodage précédent si en cours
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
     const geocodeAll = async () => {
       setLoading(true);
+      setGeocodingError(null);
       const results = [];
       let siretCount = 0;
       let inseeCount = 0;
@@ -190,9 +198,11 @@ const useGeocodedEstablishments = (establishments) => {
           setProgress(`Géocodage SIRET ${progress}% (${Math.min(i + batchSize, siretsToFetch.length)}/${siretsToFetch.length})...`);
 
           await Promise.all(batch.map(async (siret) => {
+            if (signal.aborted) return;
             try {
               const response = await fetch(
-                `https://recherche-entreprises.api.gouv.fr/search?q=${siret}&mtm_campaign=spe-dashboard`
+                `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(siret)}&mtm_campaign=spe-dashboard`,
+                { signal }
               );
               if (response.ok) {
                 const data = await response.json();
@@ -255,14 +265,16 @@ const useGeocodedEstablishments = (establishments) => {
         }
 
         // Retry pour les SIRET échoués (rate limiting)
-        if (failedSirets.size > 0 && failedSirets.size < 100) {
+        if (failedSirets.size > 0 && failedSirets.size < 100 && !signal.aborted) {
           setProgress(`Retry ${failedSirets.size} SIRET...`);
           await new Promise(resolve => setTimeout(resolve, 1000));
 
           for (const siret of failedSirets) {
+            if (signal.aborted) break;
             try {
               const response = await fetch(
-                `https://recherche-entreprises.api.gouv.fr/search?q=${siret}&mtm_campaign=spe-dashboard`
+                `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(siret)}&mtm_campaign=spe-dashboard`,
+                { signal }
               );
               if (response.ok) {
                 const data = await response.json();
@@ -326,8 +338,12 @@ const useGeocodedEstablishments = (establishments) => {
           setProgress(`Géocodage communes ${progress}% (${Math.min(i + batchSize, inseeCodesToFetch.length)}/${inseeCodesToFetch.length})...`);
 
           await Promise.all(batch.map(async (inseeCode) => {
+            if (signal.aborted) return;
             try {
-              const response = await fetch(`https://geo.api.gouv.fr/communes/${inseeCode}?fields=centre,nom`);
+              const response = await fetch(
+                `https://geo.api.gouv.fr/communes/${encodeURIComponent(inseeCode)}?fields=centre,nom`,
+                { signal }
+              );
               if (response.ok) {
                 const data = await response.json();
                 if (data.centre?.coordinates) {
@@ -380,16 +396,37 @@ const useGeocodedEstablishments = (establishments) => {
         }
       });
 
+      // Vérifier si annulé avant de mettre à jour l'état
+      if (signal.aborted) return;
+
       setStats({ siret: siretCount, insee: inseeCount, failed: failedCount });
       setGeocodedData(results);
       setLoading(false);
       setProgress('');
+
+      // Feedback d'erreur si beaucoup d'échecs
+      if (failedCount > 0 && failedCount > (siretCount + inseeCount) * 0.3) {
+        setGeocodingError(`${failedCount} établissement(s) n'ont pas pu être géolocalisés.`);
+      }
     };
 
-    geocodeAll();
+    geocodeAll().catch(err => {
+      if (err.name !== 'AbortError') {
+        console.error('Geocoding error:', err);
+        setGeocodingError('Erreur lors du géocodage des établissements.');
+        setLoading(false);
+      }
+    });
+
+    // Cleanup: annuler le géocodage en cours
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [establishments]);
 
-  return { geocodedData, loading, progress, stats };
+  return { geocodedData, loading, progress, stats, geocodingError };
 };
 
 // Composant pour ajuster la vue de la carte (créé dynamiquement après import)
@@ -537,8 +574,8 @@ const TerritoryMap = ({ establishments, territory, config, isInset = false, comp
 };
 
 // Composant interne de la carte (après chargement des composants Leaflet)
-const EstablishmentsMapInner = ({ data, title, components }) => {
-  const { geocodedData, loading, progress, stats } = useGeocodedEstablishments(data);
+const EstablishmentsMapInner = ({ data, components }) => {
+  const { geocodedData, loading, progress, stats, geocodingError } = useGeocodedEstablishments(data);
 
   // Séparer les établissements par territoire
   const { metropoleCount, domCounts } = useMemo(() => {
@@ -576,6 +613,12 @@ const EstablishmentsMapInner = ({ data, title, components }) => {
       {!loading && geocodedData.length === 0 && (
         <div className="fr-callout fr-mb-2w" style={{ padding: '1rem' }}>
           <p className="fr-mb-0">Aucun établissement géolocalisable.</p>
+        </div>
+      )}
+
+      {geocodingError && (
+        <div className="fr-alert fr-alert--warning fr-mb-2w" role="alert" style={{ padding: '0.75rem' }}>
+          <p className="fr-mb-0 fr-text--sm">{geocodingError}</p>
         </div>
       )}
 
@@ -699,7 +742,7 @@ export const EstablishmentsMap = ({ data, title = "Carte des établissements" })
 
       {leafletReady && components && (
         <MapErrorBoundary>
-          <EstablishmentsMapInner data={data} title={title} components={components} />
+          <EstablishmentsMapInner data={data} components={components} />
         </MapErrorBoundary>
       )}
     </div>

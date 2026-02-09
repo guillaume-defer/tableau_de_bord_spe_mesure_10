@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { PieChart } from './PieChart';
 import { EstablishmentsMap } from './EstablishmentsMap';
 import { useDebounce } from '../hooks/useDebounce';
@@ -58,10 +58,13 @@ export function App() {
   // Debounce sur la recherche (D5)
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
+  // Ref pour l'AbortController de la vérification SIRET
+  const speCheckAbortController = useRef(null);
+
   // ==========================================
   // VÉRIFICATION SIRET VIA API RECHERCHE ENTREPRISES
   // ==========================================
-  const checkSpeClassification = async (rows) => {
+  const checkSpeClassification = useCallback(async (rows, signal) => {
     if (!rows || rows.length === 0) return;
 
     setCheckingSirets(true);
@@ -69,12 +72,22 @@ export function App() {
     const uniqueSirets = [...new Set(rows.map(r => r.siret).filter(s => s))];
 
     for (let i = 0; i < uniqueSirets.length; i++) {
+      // Vérifier si l'opération a été annulée
+      if (signal?.aborted) {
+        setCheckingSirets(false);
+        setCheckingProgress('');
+        return;
+      }
+
       const siret = uniqueSirets[i];
       setCheckingProgress(`${i + 1}/${uniqueSirets.length}`);
 
       try {
         // Utilisation de l'API Recherche Entreprises (api.gouv.fr) - gratuite, sans auth
-        const response = await fetch(`https://recherche-entreprises.api.gouv.fr/search?q=${siret}&mtm_campaign=spe-dashboard`);
+        const response = await fetch(
+          `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(siret)}&mtm_campaign=spe-dashboard`,
+          { signal }
+        );
 
         if (response.ok) {
           const data = await response.json();
@@ -93,21 +106,28 @@ export function App() {
           classifications[siret] = classifyEstablishment(row, null);
         }
       } catch (err) {
+        if (err.name === 'AbortError') {
+          setCheckingSirets(false);
+          setCheckingProgress('');
+          return;
+        }
         console.warn('Erreur vérification SIRET:', siret, err);
         const row = rows.find(r => r.siret === siret);
         classifications[siret] = classifyEstablishment(row, null);
       }
 
       // Mise à jour progressive toutes les 10 vérifications
-      if (i % 10 === 0) {
+      if (i % 10 === 0 && !signal?.aborted) {
         setSpeClassification(prev => ({ ...prev, ...classifications }));
       }
     }
 
-    setSpeClassification(prev => ({ ...prev, ...classifications }));
-    setCheckingSirets(false);
-    setCheckingProgress('');
-  };
+    if (!signal?.aborted) {
+      setSpeClassification(prev => ({ ...prev, ...classifications }));
+      setCheckingSirets(false);
+      setCheckingProgress('');
+    }
+  }, []);
 
   // ==========================================
   // CHARGEMENT DES DONNÉES
@@ -211,7 +231,13 @@ export function App() {
 
         setData(allData);
         setTotalCount(totalRecords);
-        checkSpeClassification(allData);
+
+        // Annuler la vérification SPE précédente si elle est en cours
+        if (speCheckAbortController.current) {
+          speCheckAbortController.current.abort();
+        }
+        speCheckAbortController.current = new AbortController();
+        checkSpeClassification(allData, speCheckAbortController.current.signal);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -221,8 +247,14 @@ export function App() {
     };
 
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, selectedMinistere, selectedRegion]);
+
+    // Cleanup: annuler la vérification SPE en cours lors du démontage ou changement
+    return () => {
+      if (speCheckAbortController.current) {
+        speCheckAbortController.current.abort();
+      }
+    };
+  }, [mode, selectedMinistere, selectedRegion, checkSpeClassification]);
 
   // Charger les télédéclarations après le chargement des données principales
   useEffect(() => {
@@ -601,7 +633,7 @@ export function App() {
         <div className="fr-alert fr-alert--info fr-mb-4w">
           <p>
             Données mises à jour le {formatLastUpdate(lastUpdate)} | Source : {' '}
-            <a href="https://data.gouv.fr/fr/datasets/registre-national-des-cantines/" target="_blank" rel="noopener" title="Registre national des cantines - nouvelle fenêtre">
+            <a href="https://data.gouv.fr/fr/datasets/registre-national-des-cantines/" target="_blank" rel="noopener noreferrer" title="Registre national des cantines - nouvelle fenêtre">
               Registre national des cantines (data.gouv.fr)
             </a>
           </p>
@@ -923,15 +955,11 @@ export function App() {
                     name="search-table"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    aria-describedby="search-help"
                   />
-                  <button
-                    className="fr-btn"
-                    type="button"
-                    title="Rechercher"
-                    aria-label="Rechercher"
-                  >
-                    Rechercher
-                  </button>
+                  <span id="search-help" className="fr-hint-text" style={{ display: 'none' }}>
+                    La recherche s'effectue automatiquement
+                  </span>
                 </div>
               </div>
             </div>
@@ -960,7 +988,7 @@ export function App() {
                   </div>
                 )}
                 <div className="fr-col-auto">
-                  <a href="https://ma-cantine.crisp.help/fr/article/comment-importer-un-fichier-csv-dans-excel-7zyxo/#1-ouvrir-un-fichier-csv-sur-excel" target="_blank" rel="noopener" title="Comment importer un CSV dans Excel - nouvelle fenêtre" className="fr-link fr-text--xs">
+                  <a href="https://ma-cantine.crisp.help/fr/article/comment-importer-un-fichier-csv-dans-excel-7zyxo/#1-ouvrir-un-fichier-csv-sur-excel" target="_blank" rel="noopener noreferrer" title="Comment importer un CSV dans Excel - nouvelle fenêtre" className="fr-link fr-text--xs">
                     Comment importer un CSV dans Excel ?
                   </a>
                 </div>

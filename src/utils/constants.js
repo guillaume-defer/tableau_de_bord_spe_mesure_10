@@ -108,6 +108,9 @@ export const TD_RESOURCES = {
   '2021': 'efe63a1a-c307-4238-81b0-ffa8536163c7'  // Campagne 2022 sur données 2021
 };
 
+// Codes départements outre-mer (DOM-TOM)
+export const DOM_DEPT_CODES = ['971', '972', '973', '974', '976'];
+
 // Pagination API (limite max de l'API tabular data.gouv.fr = 50)
 export const API_PAGE_SIZE = 50;
 

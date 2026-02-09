@@ -1,4 +1,4 @@
-import { SPE_RULES } from './constants';
+import { SPE_RULES, AVAILABLE_TD_YEARS } from './constants';
 
 // ==========================================
 // FONCTIONS UTILITAIRES
@@ -122,14 +122,19 @@ export const classifyEstablishment = (row, apiEntrepriseData) => {
 
 // Détection des années de télédéclaration dans les colonnes
 export const detectDeclarationColumns = (dataRows) => {
-  if (!dataRows || dataRows.length === 0) return ['2021', '2022', '2023', '2024'];
-  const years = new Set(['2021', '2022', '2023', '2024']);
+  if (!dataRows || dataRows.length === 0) return AVAILABLE_TD_YEARS;
+  const years = new Set(AVAILABLE_TD_YEARS);
   const firstRow = dataRows[0];
+  const minYear = Math.min(...AVAILABLE_TD_YEARS.map(Number));
+  const maxYear = Math.max(...AVAILABLE_TD_YEARS.map(Number));
 
   Object.keys(firstRow).forEach(key => {
     const match = key.match(/(\d{4})/);
-    if (match && parseInt(match[1]) >= 2021 && parseInt(match[1]) <= 2025) {
-      years.add(match[1]);
+    if (match) {
+      const year = parseInt(match[1]);
+      if (year >= minYear && year <= maxYear) {
+        years.add(match[1]);
+      }
     }
   });
 
