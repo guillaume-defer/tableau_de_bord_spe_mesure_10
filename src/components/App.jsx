@@ -460,11 +460,11 @@ export function App() {
     return { avgDaily, avgYearly };
   }, [filteredData]);
 
-  // Vérifier si les données de télédéclaration sont disponibles pour l'année sélectionnée
+  // Vérifier si les données de télédéclaration détaillées sont disponibles pour l'année sélectionnée
+  // Les données détaillées (Bio, Qualité, etc.) viennent des ressources TD_RESOURCES
+  // qui peuvent ne pas exister encore pour les années récentes (ex: 2025)
   const isTDDataAvailable = useMemo(() => {
-    // Les données d'une année N sont publiées lors de la campagne N+1
-    // Actuellement disponibles: 2021, 2022, 2023, 2024
-    return AVAILABLE_TD_YEARS.includes(selectedYear);
+    return TD_RESOURCES.hasOwnProperty(selectedYear);
   }, [selectedYear]);
 
   // Style de ligne tableau

@@ -3,8 +3,8 @@
 // ==========================================
 export const API_PROXY = '/.netlify/functions/api-proxy';
 
-// Ressource CSV du Registre National des Cantines
-export const DATAGOUV_RESOURCE_ID = '3f73d129-6b24-45cd-95e9-9bacc216d9d9';
+// Ressource du Registre National des Cantines (XLSX - le CSV a été supprimé le 02/02/2026)
+export const DATAGOUV_RESOURCE_ID = '408dca92-9028-4f66-93bf-f671111393ec';
 export const DATAGOUV_DATASET_ID = '6482def590d4cf8cea3aa33e';
 
 // Liste des ministères
@@ -94,10 +94,10 @@ export const SPE_RULES = {
   }
 };
 
-// Années de télédéclaration disponibles (ressources publiées sur data.gouv.fr)
+// Années de télédéclaration disponibles (colonnes présentes dans le registre des cantines)
 // Les données d'une année N sont publiées lors de la campagne N+1
 // Exemple: données 2024 publiées lors de la campagne 2025
-export const AVAILABLE_TD_YEARS = ['2021', '2022', '2023', '2024'];
+export const AVAILABLE_TD_YEARS = ['2021', '2022', '2023', '2024', '2025'];
 
 // Ressources télédéclarations par année (IDs data.gouv.fr)
 // Source unique de vérité - utilisé par le proxy et le frontend

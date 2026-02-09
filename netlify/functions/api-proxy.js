@@ -31,10 +31,9 @@ exports.handler = async (event) => {
     '2021': 'efe63a1a-c307-4238-81b0-ffa8536163c7'  // Campagne 2022 sur données 2021
   };
 
-  // Ressources du Registre National des Cantines (avec fallback)
+  // Ressource du Registre National des Cantines (XLSX - le CSV a été supprimé le 02/02/2026)
   const CANTINES_RESOURCES = [
-    '3f73d129-6b24-45cd-95e9-9bacc216d9d9', // CSV (préféré)
-    '408dca92-9028-4f66-93bf-f671111393ec'  // XLSX (fallback)
+    '408dca92-9028-4f66-93bf-f671111393ec'  // XLSX
   ];
 
   // Déterminer quelle ressource utiliser
