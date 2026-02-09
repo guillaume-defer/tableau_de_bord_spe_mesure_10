@@ -243,8 +243,13 @@
 }
 
 .spe-row-excluded {
-  background-color: var(--background-contrast-grey) !important;
-  color: var(--text-inverted-grey) !important;
+  background-color: #e5e5e5 !important;
+  color: #666666 !important;
+  opacity: 0.8;
+}
+
+.spe-row-excluded td {
+  color: #666666 !important;
 }
 
 /* Texte d'erreur visible sur fond clair */
@@ -343,6 +348,17 @@
 [data-fr-theme="dark"] .spe-row-success td,
 [data-fr-scheme="dark"] .spe-row-success td {
   color: #d1fae5 !important;
+}
+
+[data-fr-theme="dark"] .spe-row-excluded,
+[data-fr-scheme="dark"] .spe-row-excluded {
+  background-color: #374151 !important;
+  color: #9ca3af !important;
+}
+
+[data-fr-theme="dark"] .spe-row-excluded td,
+[data-fr-scheme="dark"] .spe-row-excluded td {
+  color: #9ca3af !important;
 }
 
 [data-fr-theme="dark"] .spe-text-error,
