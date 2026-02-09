@@ -9,6 +9,7 @@ import {
   REGIONS,
   CIBLE_RIA_DGAFP,
   AVAILABLE_TD_YEARS,
+  TD_RESOURCES,
   API_PAGE_SIZE,
   INITIAL_DISPLAY_LIMIT
 } from '../utils/constants';
@@ -59,12 +60,12 @@ export function App() {
   // ==========================================
   // VÉRIFICATION SIRET VIA API RECHERCHE ENTREPRISES
   // ==========================================
-  const checkSpeClassification = useCallback(async (rows) => {
+  const checkSpeClassification = async (rows) => {
     if (!rows || rows.length === 0) return;
 
     setCheckingSirets(true);
-    const classifications = { ...speClassification };
-    const uniqueSirets = [...new Set(rows.map(r => r.siret).filter(s => s && !classifications[s]))];
+    const classifications = {};
+    const uniqueSirets = [...new Set(rows.map(r => r.siret).filter(s => s))];
 
     for (let i = 0; i < uniqueSirets.length; i++) {
       const siret = uniqueSirets[i];
@@ -91,21 +92,21 @@ export function App() {
           classifications[siret] = classifyEstablishment(row, null);
         }
       } catch (err) {
-        // A4: Ajouter console.warn pour les erreurs
         console.warn('Erreur vérification SIRET:', siret, err);
         const row = rows.find(r => r.siret === siret);
         classifications[siret] = classifyEstablishment(row, null);
       }
 
+      // Mise à jour progressive toutes les 10 vérifications
       if (i % 10 === 0) {
-        setSpeClassification({ ...classifications });
+        setSpeClassification(prev => ({ ...prev, ...classifications }));
       }
     }
 
-    setSpeClassification(classifications);
+    setSpeClassification(prev => ({ ...prev, ...classifications }));
     setCheckingSirets(false);
     setCheckingProgress('');
-  }, [speClassification]);
+  };
 
   // ==========================================
   // CHARGEMENT DES DONNÉES
@@ -214,7 +215,8 @@ export function App() {
     };
 
     fetchData();
-  }, [mode, selectedMinistere, selectedRegion, checkSpeClassification]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, selectedMinistere, selectedRegion]);
 
   // Charger les télédéclarations après le chargement des données principales
   useEffect(() => {
@@ -458,38 +460,6 @@ export function App() {
     return { avgDaily, avgYearly };
   }, [filteredData]);
 
-  // Statistiques EGalim (ratios bio et EGalim)
-  const egalimStats = useMemo(() => {
-    if (Object.keys(teledeclarations).length === 0) {
-      return { avgBio: null, avgEgalim: null, count: 0, total: filteredData.length };
-    }
-
-    let sumBio = 0, countBio = 0;
-    let sumEgalim = 0, countEgalim = 0;
-
-    filteredData.forEach(row => {
-      const siret = row.siret;
-      const td = teledeclarations[siret]?.[selectedYear];
-      if (td) {
-        if (td.ratio_bio !== null && td.ratio_bio !== undefined && !isNaN(td.ratio_bio)) {
-          sumBio += Number(td.ratio_bio);
-          countBio++;
-        }
-        if (td.ratio_egalim !== null && td.ratio_egalim !== undefined && !isNaN(td.ratio_egalim)) {
-          sumEgalim += Number(td.ratio_egalim);
-          countEgalim++;
-        }
-      }
-    });
-
-    return {
-      avgBio: countBio > 0 ? (sumBio / countBio * 100) : null,
-      avgEgalim: countEgalim > 0 ? (sumEgalim / countEgalim * 100) : null,
-      count: countBio,
-      total: filteredData.length
-    };
-  }, [filteredData, teledeclarations, selectedYear]);
-
   // Vérifier si les données de télédéclaration sont disponibles pour l'année sélectionnée
   const isTDDataAvailable = useMemo(() => {
     // Les données d'une année N sont publiées lors de la campagne N+1
@@ -548,8 +518,8 @@ export function App() {
     return sortedData.slice(0, displayLimit);
   }, [sortedData, displayLimit]);
 
-  // Export CSV établissements
-  const getExportUrl = () => {
+  // Export CSV établissements (mémoïsé pour éviter les re-créations)
+  const exportUrl = useMemo(() => {
     const params = new URLSearchParams();
     if (mode === 'ministere') {
       params.append('line_ministry__exact', selectedMinistere);
@@ -558,27 +528,19 @@ export function App() {
       params.append('region_lib__exact', selectedRegion);
     }
     return `https://tabular-api.data.gouv.fr/api/resources/${DATAGOUV_RESOURCE_ID}/data/csv/?${params.toString()}`;
-  };
+  }, [mode, selectedMinistere, selectedRegion]);
 
-  // Nom du fichier établissements
-  const getExportFilename = () => {
+  // Nom du fichier établissements (mémoïsé)
+  const exportFilename = useMemo(() => {
     if (mode === 'ministere') {
       return `etablissements_${normalizeFilename(selectedMinistere)}.csv`;
     } else {
       return `etablissements_${normalizeFilename(selectedRegion)}.csv`;
     }
-  };
+  }, [mode, selectedMinistere, selectedRegion]);
 
-  // Ressources TD par année (gérées par le proxy)
-  const TD_RESOURCES = {
-    '2024': '078cbd12-b553-4d0b-b74c-e79b19f7f61f',
-    '2023': '25570c1c-9288-4fed-9d82-0f42444e12ab',
-    '2022': '84a09799-0845-4055-9101-e3a1a00fac2f',
-    '2021': 'efe63a1a-c307-4238-81b0-ffa8536163c7'
-  };
-
-  // Export CSV télédéclarations
-  const getTDExportUrl = () => {
+  // Export CSV télédéclarations (mémoïsé)
+  const tdExportUrl = useMemo(() => {
     const resourceId = TD_RESOURCES[selectedYear] || TD_RESOURCES['2024'];
     const params = new URLSearchParams();
     if (mode === 'ministere') {
@@ -588,17 +550,17 @@ export function App() {
       params.append('canteen_region_lib__exact', selectedRegion);
     }
     return `https://tabular-api.data.gouv.fr/api/resources/${resourceId}/data/csv/?${params.toString()}`;
-  };
+  }, [mode, selectedMinistere, selectedRegion, selectedYear]);
 
-  // Nom du fichier TD
-  const getTDExportFilename = () => {
+  // Nom du fichier TD (mémoïsé)
+  const tdExportFilename = useMemo(() => {
     const campagne = parseInt(selectedYear) + 1;
     if (mode === 'ministere') {
       return `teledeclarations_campagne${campagne}_${normalizeFilename(selectedMinistere)}.csv`;
     } else {
       return `teledeclarations_campagne${campagne}_${normalizeFilename(selectedRegion)}.csv`;
     }
-  };
+  }, [mode, selectedMinistere, selectedRegion, selectedYear]);
 
   // Fonction de téléchargement
   const handleDownload = async (url, filename, type) => {
@@ -957,7 +919,7 @@ export function App() {
                 <div className="fr-col-auto">
                   <button
                     className="fr-btn fr-btn--secondary fr-btn--sm fr-btn--icon-left fr-icon-download-line"
-                    onClick={() => handleDownload(getExportUrl(), getExportFilename(), 'etablissements')}
+                    onClick={() => handleDownload(exportUrl, exportFilename, 'etablissements')}
                     disabled={downloading !== null}
                   >
                     {downloading === 'etablissements' ? 'Téléchargement...' : 'Télécharger les établissements (CSV)'}
@@ -967,7 +929,7 @@ export function App() {
                   <div className="fr-col-auto">
                     <button
                       className="fr-btn fr-btn--secondary fr-btn--sm fr-btn--icon-left fr-icon-download-line"
-                      onClick={() => handleDownload(getTDExportUrl(), getTDExportFilename(), 'teledeclarations')}
+                      onClick={() => handleDownload(tdExportUrl, tdExportFilename, 'teledeclarations')}
                       disabled={downloading !== null}
                     >
                       {downloading === 'teledeclarations' ? 'Téléchargement...' : 'Télécharger les télédéclarations (CSV)'}

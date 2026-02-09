@@ -99,6 +99,15 @@ export const SPE_RULES = {
 // Exemple: données 2024 publiées lors de la campagne 2025
 export const AVAILABLE_TD_YEARS = ['2021', '2022', '2023', '2024'];
 
+// Ressources télédéclarations par année (IDs data.gouv.fr)
+// Source unique de vérité - utilisé par le proxy et le frontend
+export const TD_RESOURCES = {
+  '2024': '078cbd12-b553-4d0b-b74c-e79b19f7f61f', // Campagne 2025 sur données 2024
+  '2023': '25570c1c-9288-4fed-9d82-0f42444e12ab', // Campagne 2024 sur données 2023
+  '2022': '84a09799-0845-4055-9101-e3a1a00fac2f', // Campagne 2023 sur données 2022
+  '2021': 'efe63a1a-c307-4238-81b0-ffa8536163c7'  // Campagne 2022 sur données 2021
+};
+
 // Pagination API (limite max de l'API tabular data.gouv.fr = 50)
 export const API_PAGE_SIZE = 50;
 
