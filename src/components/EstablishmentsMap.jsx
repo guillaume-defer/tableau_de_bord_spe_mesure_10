@@ -181,10 +181,13 @@ const useGeocodedEstablishments = (establishments) => {
 
       // Étape 2: Géocoder par SIRET via API Recherche Entreprises
       if (siretsToFetch.length > 0) {
-        const batchSize = 10; // API plus sensible au rate limiting
+        const batchSize = 30; // Batch plus grand pour accélérer
+        const failedSirets = new Set();
+
         for (let i = 0; i < siretsToFetch.length; i += batchSize) {
           const batch = siretsToFetch.slice(i, i + batchSize);
-          setProgress(`Géocodage SIRET ${Math.min(i + batchSize, siretsToFetch.length)}/${siretsToFetch.length}...`);
+          const progress = Math.round((i / siretsToFetch.length) * 100);
+          setProgress(`Géocodage SIRET ${progress}% (${Math.min(i + batchSize, siretsToFetch.length)}/${siretsToFetch.length})...`);
 
           await Promise.all(batch.map(async (siret) => {
             try {
@@ -194,16 +197,26 @@ const useGeocodedEstablishments = (establishments) => {
               if (response.ok) {
                 const data = await response.json();
                 const result = data.results?.[0];
-                // Chercher l'établissement correspondant au SIRET (siège ou établissement)
-                const siege = result?.siege;
-                if (siege?.latitude && siege?.longitude && siege.siret === siret) {
+                if (!result) {
+                  failedSirets.add(siret);
+                  return;
+                }
+
+                // Chercher l'établissement correspondant au SIRET
+                const siege = result.siege;
+
+                // 1. Vérifier si c'est le siège
+                if (siege?.siret === siret && siege?.latitude && siege?.longitude) {
                   siretCache.current[siret] = {
                     coords: [parseFloat(siege.latitude), parseFloat(siege.longitude)],
                     address: siege.geo_adresse || siege.adresse,
                     precision: 'address'
                   };
-                } else if (result?.matching_etablissements) {
-                  // Chercher dans les établissements correspondants
+                  return;
+                }
+
+                // 2. Chercher dans matching_etablissements
+                if (result.matching_etablissements) {
                   const match = result.matching_etablissements.find(e => e.siret === siret);
                   if (match?.latitude && match?.longitude) {
                     siretCache.current[siret] = {
@@ -211,19 +224,82 @@ const useGeocodedEstablishments = (establishments) => {
                       address: match.geo_adresse || match.adresse,
                       precision: 'address'
                     };
+                    return;
                   }
                 }
+
+                // 3. Fallback: utiliser le siège même si ce n'est pas le bon SIRET (même entreprise)
+                if (siege?.latitude && siege?.longitude) {
+                  siretCache.current[siret] = {
+                    coords: [parseFloat(siege.latitude), parseFloat(siege.longitude)],
+                    address: siege.geo_adresse || siege.adresse,
+                    precision: 'address'
+                  };
+                  return;
+                }
+
+                failedSirets.add(siret);
+              } else if (response.status === 429) {
+                // Rate limited - retry later
+                failedSirets.add(siret);
               }
             } catch {
-              // Ignore errors, will fallback to INSEE
+              failedSirets.add(siret);
             }
           }));
 
-          // Délai pour éviter le rate limiting
+          // Délai réduit entre les batches
           if (i + batchSize < siretsToFetch.length) {
-            await new Promise(resolve => setTimeout(resolve, 200));
+            await new Promise(resolve => setTimeout(resolve, 50));
           }
         }
+
+        // Retry pour les SIRET échoués (rate limiting)
+        if (failedSirets.size > 0 && failedSirets.size < 100) {
+          setProgress(`Retry ${failedSirets.size} SIRET...`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+          for (const siret of failedSirets) {
+            try {
+              const response = await fetch(
+                `https://recherche-entreprises.api.gouv.fr/search?q=${siret}&mtm_campaign=spe-dashboard`
+              );
+              if (response.ok) {
+                const data = await response.json();
+                const result = data.results?.[0];
+                if (result) {
+                  const siege = result.siege;
+                  if (siege?.siret === siret && siege?.latitude && siege?.longitude) {
+                    siretCache.current[siret] = {
+                      coords: [parseFloat(siege.latitude), parseFloat(siege.longitude)],
+                      address: siege.geo_adresse || siege.adresse,
+                      precision: 'address'
+                    };
+                  } else if (result.matching_etablissements) {
+                    const match = result.matching_etablissements.find(e => e.siret === siret);
+                    if (match?.latitude && match?.longitude) {
+                      siretCache.current[siret] = {
+                        coords: [parseFloat(match.latitude), parseFloat(match.longitude)],
+                        address: match.geo_adresse || match.adresse,
+                        precision: 'address'
+                      };
+                    }
+                  } else if (siege?.latitude && siege?.longitude) {
+                    siretCache.current[siret] = {
+                      coords: [parseFloat(siege.latitude), parseFloat(siege.longitude)],
+                      address: siege.geo_adresse || siege.adresse,
+                      precision: 'address'
+                    };
+                  }
+                }
+              }
+              await new Promise(resolve => setTimeout(resolve, 100));
+            } catch {
+              // Ignore
+            }
+          }
+        }
+
         saveCache(SIRET_CACHE_KEY, siretCache.current);
       }
 
@@ -243,10 +319,11 @@ const useGeocodedEstablishments = (establishments) => {
       // Étape 4: Géocoder par code INSEE via API Géo
       const inseeCodesToFetch = Array.from(inseeToFetch);
       if (inseeCodesToFetch.length > 0) {
-        const batchSize = 50;
+        const batchSize = 100; // API Géo supporte plus de requêtes parallèles
         for (let i = 0; i < inseeCodesToFetch.length; i += batchSize) {
           const batch = inseeCodesToFetch.slice(i, i + batchSize);
-          setProgress(`Géocodage communes ${Math.min(i + batchSize, inseeCodesToFetch.length)}/${inseeCodesToFetch.length}...`);
+          const progress = Math.round((i / inseeCodesToFetch.length) * 100);
+          setProgress(`Géocodage communes ${progress}% (${Math.min(i + batchSize, inseeCodesToFetch.length)}/${inseeCodesToFetch.length})...`);
 
           await Promise.all(batch.map(async (inseeCode) => {
             try {
@@ -266,8 +343,9 @@ const useGeocodedEstablishments = (establishments) => {
             }
           }));
 
+          // Délai minimal entre les batches
           if (i + batchSize < inseeCodesToFetch.length) {
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(resolve => setTimeout(resolve, 20));
           }
         }
         saveCache(INSEE_CACHE_KEY, inseeCache.current);
