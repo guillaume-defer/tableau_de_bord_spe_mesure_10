@@ -163,3 +163,12 @@ export const API_PAGE_SIZE = 50;
 
 // Limite d'affichage initiale pour les performances
 export const INITIAL_DISPLAY_LIMIT = 100;
+
+// ==========================================
+// OBJECTIFS EGALIM
+// ==========================================
+// Loi EGalim (art. 24) - Objectifs pour la restauration collective publique
+export const EGALIM_OBJECTIVES = {
+  bio: 20,           // 20% minimum de produits bio
+  durable: 50        // 50% minimum de produits durables et de qualité (dont bio)
+};

@@ -1,6 +1,5 @@
-// Fonction serverless Netlify - Proxy vers l'API data.gouv.fr
+// Fonction serverless Netlify - Proxy vers les APIs data.gouv.fr et ma-cantine
 // Contourne les restrictions CORS
-// Utilise le fichier CSV du Registre National des Cantines
 
 // En-têtes CORS communs
 const CORS_HEADERS = {
@@ -8,6 +7,9 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, Accept',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
 };
+
+// URL de base API ma-cantine
+const MA_CANTINE_API = 'https://ma-cantine.agriculture.gouv.fr/api/v1';
 
 exports.handler = async (event) => {
   // Gérer les requêtes preflight CORS (OPTIONS)
@@ -21,6 +23,56 @@ exports.handler = async (event) => {
 
   // Récupérer les paramètres de la requête
   const params = event.queryStringParameters || {};
+
+  // ==========================================
+  // API ma-cantine (campagnes, ministères, secteurs)
+  // ==========================================
+  if (params.source === 'ma-cantine') {
+    const endpoint = params.endpoint || 'campaignDates';
+    const year = params.year;
+    delete params.source;
+    delete params.endpoint;
+    delete params.year;
+
+    let url = `${MA_CANTINE_API}/${endpoint}/`;
+    if (year) url += `${year}/`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          statusCode: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=3600',
+            ...CORS_HEADERS,
+          },
+          body: JSON.stringify(data),
+        };
+      }
+
+      return {
+        statusCode: response.status,
+        headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+        body: JSON.stringify({ error: `ma-cantine API error: ${response.status}` }),
+      };
+    } catch (error) {
+      return {
+        statusCode: 500,
+        headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+        body: JSON.stringify({ error: error.message }),
+      };
+    }
+  }
+
+  // ==========================================
+  // API data.gouv.fr (cantines, télédéclarations)
+  // ==========================================
 
   // Ressources des télédéclarations par année de données
   // Note: Ces valeurs sont dupliquées dans src/utils/constants.js pour le frontend
