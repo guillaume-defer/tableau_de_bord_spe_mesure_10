@@ -1160,7 +1160,7 @@ export function App() {
                 <tbody>
                   {displayedData.map((row, i) => (
                     <tr key={row.id || i} className={getRowClassName(row)}>
-                      <td className="spe-word-break" style={{ maxWidth: '12.5rem' }}>
+                      <td className="spe-word-break">
                         {isMissing(row.name) ? <span className="spe-text-error"><span className="fr-icon-warning-fill fr-icon--sm" aria-hidden="true"></span> -</span> : row.name}
                       </td>
                       <td className="spe-text-mono">
@@ -1168,7 +1168,7 @@ export function App() {
                       </td>
                       <td>{row.city || '-'}</td>
                       <td>{row.department_lib || '-'}</td>
-                      <td className="spe-word-break" style={{ maxWidth: '11.25rem' }}>
+                      <td className="spe-word-break">
                         {hasMultipleSectors(row.sector_list) ? (
                           <span className="spe-text-error"><span className="fr-icon-warning-fill fr-icon--sm" aria-hidden="true"></span> {row.sector_list}</span>
                         ) : (

@@ -279,15 +279,86 @@
   margin-right: 0.25rem;
 }
 
+/* ============================================
+   TABLEAU DES ÉTABLISSEMENTS - Layout fixe
+   ============================================ */
+
+/* Force le tableau à avoir une largeur minimale pour éviter le chevauchement */
+.fr-table table {
+  min-width: 1400px;
+  table-layout: fixed;
+}
+
+/* Largeurs des colonnes du tableau établissements */
+.fr-table th:nth-child(1),
+.fr-table td:nth-child(1) {
+  width: 200px;
+  min-width: 200px;
+}
+
+.fr-table th:nth-child(2),
+.fr-table td:nth-child(2) {
+  width: 130px;
+  min-width: 130px;
+}
+
+.fr-table th:nth-child(3),
+.fr-table td:nth-child(3) {
+  width: 140px;
+  min-width: 140px;
+}
+
+.fr-table th:nth-child(4),
+.fr-table td:nth-child(4) {
+  width: 130px;
+  min-width: 130px;
+}
+
+.fr-table th:nth-child(5),
+.fr-table td:nth-child(5) {
+  width: 220px;
+  min-width: 220px;
+}
+
+.fr-table th:nth-child(6),
+.fr-table td:nth-child(6) {
+  width: 120px;
+  min-width: 120px;
+}
+
+.fr-table th:nth-child(7),
+.fr-table td:nth-child(7) {
+  width: 90px;
+  min-width: 90px;
+}
+
+.fr-table th:nth-child(8),
+.fr-table td:nth-child(8) {
+  width: 60px;
+  min-width: 60px;
+  text-align: center;
+}
+
+/* Colonnes années et pourcentages (à partir de la 9e colonne) */
+.fr-table th:nth-child(n+9),
+.fr-table td:nth-child(n+9) {
+  width: 70px;
+  min-width: 70px;
+  text-align: center;
+}
+
 /* Utilitaires */
 .spe-text-mono {
   font-family: monospace;
   font-size: 0.75rem;
+  white-space: nowrap;
 }
 
 .spe-word-break {
   word-wrap: break-word;
+  overflow-wrap: break-word;
   white-space: normal;
+  hyphens: auto;
 }
 
 /* Badge dans le titre du header */
