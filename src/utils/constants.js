@@ -3,8 +3,8 @@
 // ==========================================
 export const API_PROXY = '/.netlify/functions/api-proxy';
 
-// Ressource du Registre National des Cantines (Parquet - le CSV a été supprimé, le XLSX est corrompu)
-export const DATAGOUV_RESOURCE_ID = 'efbc5aaa-e044-4044-a33a-c570e9d688b4';
+// Ressource du Registre National des Cantines (XLSX - le Parquet n'est plus mis à jour depuis le 20/01/2026)
+export const DATAGOUV_RESOURCE_ID = '408dca92-9028-4f66-93bf-f671111393ec';
 export const DATAGOUV_DATASET_ID = '6482def590d4cf8cea3aa33e';
 
 // Liste des ministères
