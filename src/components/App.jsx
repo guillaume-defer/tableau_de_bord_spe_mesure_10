@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { PieChart } from './PieChart';
 import { EstablishmentsMap } from './EstablishmentsMap';
+import { CampaignBanner } from './CampaignBanner';
 import { useDebounce } from '../hooks/useDebounce';
 import {
   API_PROXY,
@@ -12,7 +13,8 @@ import {
   AVAILABLE_TD_YEARS,
   TD_RESOURCES,
   API_PAGE_SIZE,
-  INITIAL_DISPLAY_LIMIT
+  INITIAL_DISPLAY_LIMIT,
+  EGALIM_OBJECTIVES
 } from '../utils/constants';
 import {
   isTrueValue,
@@ -23,7 +25,6 @@ import {
   formatNumber,
   formatLastUpdate,
   normalizeFilename,
-  classifyEstablishment,
   detectDeclarationColumns,
   hasTeledeclaration
 } from '../utils/helpers';
@@ -41,9 +42,6 @@ export function App() {
   const [lastUpdate, setLastUpdate] = useState(null);
   const [availableYears, setAvailableYears] = useState(AVAILABLE_TD_YEARS);
   const [selectedYear, setSelectedYear] = useState('2024');
-  const [speClassification, setSpeClassification] = useState({});
-  const [checkingSirets, setCheckingSirets] = useState(false);
-  const [checkingProgress, setCheckingProgress] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSecteurs, setSelectedSecteurs] = useState([]);
   const [downloading, setDownloading] = useState(null);
@@ -57,77 +55,6 @@ export function App() {
 
   // Debounce sur la recherche (D5)
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
-
-  // Ref pour l'AbortController de la vérification SIRET
-  const speCheckAbortController = useRef(null);
-
-  // ==========================================
-  // VÉRIFICATION SIRET VIA API RECHERCHE ENTREPRISES
-  // ==========================================
-  const checkSpeClassification = useCallback(async (rows, signal) => {
-    if (!rows || rows.length === 0) return;
-
-    setCheckingSirets(true);
-    const classifications = {};
-    const uniqueSirets = [...new Set(rows.map(r => r.siret).filter(s => s))];
-
-    for (let i = 0; i < uniqueSirets.length; i++) {
-      // Vérifier si l'opération a été annulée
-      if (signal?.aborted) {
-        setCheckingSirets(false);
-        setCheckingProgress('');
-        return;
-      }
-
-      const siret = uniqueSirets[i];
-      setCheckingProgress(`${i + 1}/${uniqueSirets.length}`);
-
-      try {
-        // Utilisation de l'API Recherche Entreprises (api.gouv.fr) - gratuite, sans auth
-        const response = await fetch(
-          `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(siret)}&mtm_campaign=spe-dashboard`,
-          { signal }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          const entreprise = data.results?.[0];
-          const row = rows.find(r => r.siret === siret);
-
-          if (entreprise) {
-            classifications[siret] = classifyEstablishment(row, {
-              categorie_juridique: entreprise.nature_juridique
-            });
-          } else {
-            classifications[siret] = classifyEstablishment(row, null);
-          }
-        } else {
-          const row = rows.find(r => r.siret === siret);
-          classifications[siret] = classifyEstablishment(row, null);
-        }
-      } catch (err) {
-        if (err.name === 'AbortError') {
-          setCheckingSirets(false);
-          setCheckingProgress('');
-          return;
-        }
-        console.warn('Erreur vérification SIRET:', siret, err);
-        const row = rows.find(r => r.siret === siret);
-        classifications[siret] = classifyEstablishment(row, null);
-      }
-
-      // Mise à jour progressive toutes les 10 vérifications
-      if (i % 10 === 0 && !signal?.aborted) {
-        setSpeClassification(prev => ({ ...prev, ...classifications }));
-      }
-    }
-
-    if (!signal?.aborted) {
-      setSpeClassification(prev => ({ ...prev, ...classifications }));
-      setCheckingSirets(false);
-      setCheckingProgress('');
-    }
-  }, []);
 
   // ==========================================
   // CHARGEMENT DES DONNÉES
@@ -180,7 +107,6 @@ export function App() {
 
       setLoading(true);
       setError(null);
-      setSpeClassification({});
       setDisplayLimit(INITIAL_DISPLAY_LIMIT);
 
       try {
@@ -235,13 +161,6 @@ export function App() {
 
         setData(allData);
         setTotalCount(totalRecords);
-
-        // Annuler la vérification SPE précédente si elle est en cours
-        if (speCheckAbortController.current) {
-          speCheckAbortController.current.abort();
-        }
-        speCheckAbortController.current = new AbortController();
-        checkSpeClassification(allData, speCheckAbortController.current.signal);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -251,14 +170,7 @@ export function App() {
     };
 
     fetchData();
-
-    // Cleanup: annuler la vérification SPE en cours lors du démontage ou changement
-    return () => {
-      if (speCheckAbortController.current) {
-        speCheckAbortController.current.abort();
-      }
-    };
-  }, [mode, selectedMinistere, selectedRegion, checkSpeClassification]);
+  }, [mode, selectedMinistere, selectedRegion]);
 
   // Charger les télédéclarations après le chargement des données principales
   useEffect(() => {
@@ -362,27 +274,6 @@ export function App() {
     return Array.from(secteurs).sort();
   }, [data]);
 
-  // Classification SPE d'une ligne
-  const getSpeClass = useCallback((row) => {
-    const siret = row.siret ? row.siret.toString().trim() : '';
-    return speClassification[siret] || null;
-  }, [speClassification]);
-
-  const getSpeBadge = useCallback((row) => {
-    const speClass = getSpeClass(row);
-    if (speClass === 'BLANC') return {
-      text: 'Établissement SPE',
-      icon: 'fr-icon-checkbox-circle-fill',
-      color: 'var(--text-default-success)'
-    };
-    if (speClass === 'ORANGE') return {
-      text: 'Classification à vérifier',
-      icon: 'fr-icon-question-fill',
-      color: 'var(--text-default-warning)'
-    };
-    return null;
-  }, [getSpeClass]);
-
   // Statistiques principales
   const stats = useMemo(() => {
     const totalApi = totalCount > 0 ? totalCount : data.length;
@@ -419,44 +310,55 @@ export function App() {
     return { count: riaCount, cible, pct };
   }, [mode, selectedRegion, filteredData]);
 
-  // Stats erreurs
+  // Stats erreurs avec score qualité
   const errorStats = useMemo(() => {
     const errors = {
       no_active_manager: 0, siret: 0, name: 0, daily_meal_count: 0,
       production_type: 0, management_type: 0, economic_model: 0,
       economic_model_private: 0, multiple_sectors: 0
     };
+    // Poids des erreurs par impact (erreurs critiques = poids élevé)
+    const weights = {
+      siret: 3,              // Critique: identifiant unique
+      no_active_manager: 2,  // Important: pas de gestionnaire actif
+      name: 2,               // Important: identification
+      daily_meal_count: 1,   // Moyen: statistiques
+      production_type: 1,
+      management_type: 1,
+      economic_model: 1,
+      economic_model_private: 0.5, // Faible: avertissement
+      multiple_sectors: 0.5
+    };
     let total = 0;
+    let totalWeightedErrors = 0;
+    const maxWeightedErrorsPerRow = Object.values(weights).reduce((a, b) => a + b, 0);
 
     filteredData.forEach(row => {
       let hasError = false;
-      if (!isTrueValue(row.active_on_ma_cantine)) { errors.no_active_manager++; hasError = true; }
-      if (isMissing(row.siret)) { errors.siret++; hasError = true; }
-      if (isMissing(row.name)) { errors.name++; hasError = true; }
-      if (isMissing(row.daily_meal_count)) { errors.daily_meal_count++; hasError = true; }
-      if (isMissing(row.production_type)) { errors.production_type++; hasError = true; }
-      if (isMissing(row.management_type)) { errors.management_type++; hasError = true; }
-      if (isMissing(row.economic_model)) { errors.economic_model++; hasError = true; }
-      else if (row.economic_model !== 'public') { errors.economic_model_private++; hasError = true; }
-      if (hasMultipleSectors(row.sector_list)) { errors.multiple_sectors++; hasError = true; }
+      let rowWeightedErrors = 0;
+
+      if (!isTrueValue(row.active_on_ma_cantine)) { errors.no_active_manager++; rowWeightedErrors += weights.no_active_manager; hasError = true; }
+      if (isMissing(row.siret)) { errors.siret++; rowWeightedErrors += weights.siret; hasError = true; }
+      if (isMissing(row.name)) { errors.name++; rowWeightedErrors += weights.name; hasError = true; }
+      if (isMissing(row.daily_meal_count)) { errors.daily_meal_count++; rowWeightedErrors += weights.daily_meal_count; hasError = true; }
+      if (isMissing(row.production_type)) { errors.production_type++; rowWeightedErrors += weights.production_type; hasError = true; }
+      if (isMissing(row.management_type)) { errors.management_type++; rowWeightedErrors += weights.management_type; hasError = true; }
+      if (isMissing(row.economic_model)) { errors.economic_model++; rowWeightedErrors += weights.economic_model; hasError = true; }
+      else if (row.economic_model !== 'public') { errors.economic_model_private++; rowWeightedErrors += weights.economic_model_private; hasError = true; }
+      if (hasMultipleSectors(row.sector_list)) { errors.multiple_sectors++; rowWeightedErrors += weights.multiple_sectors; hasError = true; }
+
       if (hasError) total++;
+      totalWeightedErrors += rowWeightedErrors;
     });
 
-    return { errors, total };
+    // Score qualité: 100% = aucune erreur, 0% = toutes les erreurs possibles
+    const maxPossibleErrors = filteredData.length * maxWeightedErrorsPerRow;
+    const qualityScore = maxPossibleErrors > 0
+      ? Math.round(((maxPossibleErrors - totalWeightedErrors) / maxPossibleErrors) * 100)
+      : 100;
+
+    return { errors, total, qualityScore };
   }, [filteredData]);
-
-  // Stats SPE
-  const speStats = useMemo(() => {
-    const stats = { BLANC: 0, ORANGE: 0, INCONNU: 0 };
-    filteredData.forEach(row => {
-      const siret = row.siret ? row.siret.toString().trim() : '';
-      const classification = speClassification[siret];
-      if (classification === 'BLANC') stats.BLANC++;
-      else if (classification === 'ORANGE') stats.ORANGE++;
-      else stats.INCONNU++;
-    });
-    return stats;
-  }, [filteredData, speClassification]);
 
   // Stats par type de gestion
   const managementStats = useMemo(() => {
@@ -498,6 +400,46 @@ export function App() {
     return { avgDaily, avgYearly };
   }, [filteredData]);
 
+  // Statistiques agrégées EGalim
+  const egalimStats = useMemo(() => {
+    let totalWithData = 0;
+    let meetsBioObjective = 0;
+    let meetsDurableObjective = 0;
+
+    filteredData.forEach(row => {
+      const td = teledeclarations[row.siret]?.[selectedYear];
+      if (td && (td.ratio_bio !== null || td.ratio_egalim !== null)) {
+        totalWithData++;
+        const bio = td.ratio_bio ? Number(td.ratio_bio) * 100 : 0;
+        const egalim = td.ratio_egalim ? Number(td.ratio_egalim) * 100 : 0;
+        const total = bio + egalim;
+
+        if (bio >= EGALIM_OBJECTIVES.bio) meetsBioObjective++;
+        if (total >= EGALIM_OBJECTIVES.durable) meetsDurableObjective++;
+      }
+    });
+
+    return {
+      totalWithData,
+      bio: {
+        count: meetsBioObjective,
+        pct: totalWithData > 0 ? ((meetsBioObjective / totalWithData) * 100).toFixed(0) : 0
+      },
+      durable: {
+        count: meetsDurableObjective,
+        pct: totalWithData > 0 ? ((meetsDurableObjective / totalWithData) * 100).toFixed(0) : 0
+      }
+    };
+  }, [filteredData, teledeclarations, selectedYear]);
+
+  // Historique des télédéclarations par année
+  const tdHistory = useMemo(() => {
+    return availableYears.map(year => {
+      const count = filteredData.filter(d => hasTeledeclaration(d, year)).length;
+      return { year, count };
+    });
+  }, [filteredData, availableYears]);
+
   // Vérifier si les données de télédéclaration détaillées sont disponibles pour l'année sélectionnée
   // Les données détaillées (Bio, Qualité, etc.) viennent des ressources TD_RESOURCES
   // qui peuvent ne pas exister encore pour les années récentes (ex: 2025)
@@ -523,7 +465,7 @@ export function App() {
     return '';
   }, [selectedYear]);
 
-  // Fonction de priorité de tri (erreurs en premier, puis à vérifier, puis OK)
+  // Fonction de priorité de tri (erreurs en premier, puis sans TD, puis OK)
   const getRowSortPriority = useCallback((row) => {
     const hasError = !isTrueValue(row.active_on_ma_cantine) ||
       isMissing(row.siret) || isMissing(row.name) ||
@@ -533,14 +475,11 @@ export function App() {
       hasMultipleSectors(row.sector_list);
     if (hasError) return 1;
 
-    const speClass = getSpeClass(row);
-    if (speClass === 'ORANGE') return 2;
-
     const hasTD = selectedYear && hasTeledeclaration(row, selectedYear);
-    if (!hasTD && selectedYear) return 3;
+    if (!hasTD && selectedYear) return 2;
 
-    return 4;
-  }, [getSpeClass, selectedYear]);
+    return 3;
+  }, [selectedYear]);
 
   // Données triées par priorité
   const sortedData = useMemo(() => {
@@ -619,6 +558,138 @@ export function App() {
     }
   };
 
+  // Export CSV enrichi avec historique EGalim
+  const handleEnrichedExport = async () => {
+    setDownloading('enriched');
+
+    try {
+      // Charger les télédéclarations pour toutes les années disponibles
+      const allYearsTD = {};
+      const yearsWithData = Object.keys(TD_RESOURCES);
+
+      for (const year of yearsWithData) {
+        try {
+          const params = new URLSearchParams();
+          params.append('source', 'teledeclarations');
+          params.append('td_year', year);
+          if (mode === 'ministere') {
+            params.append('canteen_line_ministry__exact', selectedMinistere);
+          } else {
+            params.append('canteen_line_ministry__exact', "Préfecture - Administration Territoriale de l'État (ATE)");
+            params.append('canteen_region_lib__exact', selectedRegion);
+          }
+          params.append('page_size', '1000');
+
+          const response = await fetch(`${API_PROXY}?${params.toString()}`);
+          if (response.ok) {
+            const result = await response.json();
+            (result.data || []).forEach(td => {
+              const siret = td.canteen_siret;
+              if (siret) {
+                if (!allYearsTD[siret]) allYearsTD[siret] = {};
+                allYearsTD[siret][year] = {
+                  ratio_bio: td.teledeclaration_ratio_bio,
+                  ratio_egalim: td.teledeclaration_ratio_egalim_hors_bio
+                };
+              }
+            });
+          }
+        } catch (e) {
+          console.warn(`Erreur chargement TD ${year}:`, e);
+        }
+      }
+
+      // Générer le CSV
+      const headers = [
+        'SIRET', 'Nom', 'Ville', 'Département', 'Région', 'Secteur',
+        'Type gestion', 'Modèle économique', 'Actif sur ma cantine'
+      ];
+
+      // Ajouter les colonnes par année
+      yearsWithData.forEach(year => {
+        headers.push(`% Bio ${year}`);
+        headers.push(`% Qualité hors bio ${year}`);
+        headers.push(`% EGalim total ${year}`);
+      });
+
+      headers.push('Écart Bio vs objectif (20%)');
+      headers.push('Écart EGalim vs objectif (50%)');
+      headers.push('Statut Bio');
+      headers.push('Statut EGalim');
+
+      const rows = filteredData.map(row => {
+        const line = [
+          row.siret || '',
+          (row.name || '').replace(/"/g, '""'),
+          (row.city || '').replace(/"/g, '""'),
+          row.department_lib || '',
+          row.region_lib || '',
+          (row.sector_list || '').replace(/"/g, '""'),
+          translateManagementType(row.management_type) || '',
+          row.economic_model || '',
+          isTrueValue(row.active_on_ma_cantine) ? 'Oui' : 'Non'
+        ];
+
+        // Dernières valeurs connues pour calculer l'écart
+        let lastBio = null;
+        let lastTotal = null;
+
+        yearsWithData.forEach(year => {
+          const td = allYearsTD[row.siret]?.[year];
+          if (td) {
+            const bio = td.ratio_bio !== null ? (Number(td.ratio_bio) * 100).toFixed(1) : '';
+            const egalim = td.ratio_egalim !== null ? (Number(td.ratio_egalim) * 100).toFixed(1) : '';
+            const total = (td.ratio_bio !== null || td.ratio_egalim !== null)
+              ? ((Number(td.ratio_bio || 0) + Number(td.ratio_egalim || 0)) * 100).toFixed(1)
+              : '';
+
+            line.push(bio);
+            line.push(egalim);
+            line.push(total);
+
+            if (bio !== '') lastBio = Number(td.ratio_bio) * 100;
+            if (total !== '') lastTotal = (Number(td.ratio_bio || 0) + Number(td.ratio_egalim || 0)) * 100;
+          } else {
+            line.push('', '', '');
+          }
+        });
+
+        // Écarts et statuts basés sur la dernière année avec données
+        const ecartBio = lastBio !== null ? (lastBio - EGALIM_OBJECTIVES.bio).toFixed(1) : '';
+        const ecartTotal = lastTotal !== null ? (lastTotal - EGALIM_OBJECTIVES.durable).toFixed(1) : '';
+        const statutBio = lastBio !== null ? (lastBio >= EGALIM_OBJECTIVES.bio ? 'Conforme' : 'À améliorer') : '';
+        const statutTotal = lastTotal !== null ? (lastTotal >= EGALIM_OBJECTIVES.durable ? 'Conforme' : 'À améliorer') : '';
+
+        line.push(ecartBio, ecartTotal, statutBio, statutTotal);
+        return line;
+      });
+
+      // Construire le CSV
+      const csvContent = [
+        headers.map(h => `"${h}"`).join(';'),
+        ...rows.map(r => r.map(c => `"${c}"`).join(';'))
+      ].join('\n');
+
+      // Télécharger
+      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      const filename = mode === 'ministere'
+        ? `export_enrichi_${normalizeFilename(selectedMinistere)}.csv`
+        : `export_enrichi_${normalizeFilename(selectedRegion)}.csv`;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      console.error('Erreur export enrichi:', e);
+    } finally {
+      setDownloading(null);
+    }
+  };
+
   // ==========================================
   // RENDU
   // ==========================================
@@ -635,6 +706,9 @@ export function App() {
           </p>
         </div>
       )}
+
+      {/* Bandeau campagne en cours */}
+      <CampaignBanner />
 
       {/* Sélection du périmètre */}
       <div className="fr-grid-row fr-grid-row--gutters fr-mb-4w">
@@ -848,91 +922,130 @@ export function App() {
             title="Localisation des établissements"
           />
 
-          {/* Légende et Classification SPE */}
+          {/* Légende et statistiques */}
           <div className="fr-grid-row fr-grid-row--gutters fr-mb-4w" style={{ alignItems: 'stretch' }}>
             <div className="fr-col-12 fr-col-md-6" style={{ display: 'flex' }}>
               <div className="fr-callout fr-callout--brown-caramel" style={{ flex: 1, marginBottom: 0 }}>
                 <p className="fr-callout__title">Légende</p>
                 <div className="fr-callout__text">
                   <p className="fr-mb-1w"><strong>Couleurs des lignes :</strong></p>
-                  <ul className="fr-mb-2w">
+                  <ul className="fr-mb-0">
                     <li><span className="spe-legend-color spe-legend-color--error">Rouge</span> : Information à corriger</li>
                     <li><span className="spe-legend-color spe-legend-color--warning">Jaune</span> : Télédéclaration à effectuer</li>
                     <li><span className="spe-legend-color spe-legend-color--success">Vert</span> : Télédéclaration effectuée</li>
                   </ul>
-                  <p className="fr-mb-1w"><strong>Colonne SPE :</strong></p>
-                  <ul>
-                    <li><span className="fr-icon-checkbox-circle-fill fr-icon--sm fr-mr-1v" style={{ color: 'var(--text-default-success)' }} aria-hidden="true"></span> Établissement SPE</li>
-                    <li><span className="fr-icon-question-fill fr-icon--sm fr-mr-1v" style={{ color: 'var(--text-default-warning)' }} aria-hidden="true"></span> À vérifier</li>
-                  </ul>
                 </div>
               </div>
             </div>
 
-            <div className="fr-col-12 fr-col-md-6" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div className="fr-col-12 fr-col-md-6" style={{ display: 'flex' }}>
               <div className="fr-callout" style={{ flex: 1, marginBottom: 0 }}>
-                <p className="fr-callout__title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  Classification SPE
-                  <button
-                    className="fr-btn--tooltip fr-btn"
-                    type="button"
-                    aria-describedby="tooltip-spe-info"
-                    style={{ padding: 0, minHeight: 'auto', background: 'none' }}
+                <p className="fr-callout__title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  Qualité des données
+                  <span
+                    className={`fr-badge ${
+                      errorStats.qualityScore >= 90 ? 'fr-badge--success' :
+                      errorStats.qualityScore >= 70 ? 'fr-badge--warning' :
+                      'fr-badge--error'
+                    }`}
                   >
-                    <span className="fr-icon-question-line fr-icon--sm" aria-hidden="true"></span>
-                    <span className="fr-sr-only">Information sur la classification</span>
-                  </button>
-                  <span className="fr-tooltip fr-placement" id="tooltip-spe-info" role="tooltip" aria-hidden="true">
-                    Cette classification est donnée à titre indicatif.
+                    {errorStats.qualityScore}%
                   </span>
                 </p>
                 <div className="fr-callout__text">
-                  <div className="fr-grid-row fr-grid-row--gutters">
-                    <div className="fr-col-6" style={{ textAlign: 'center' }}>
-                      <p className="spe-stat-label">SPE confirmé</p>
-                      <p className="spe-stat-value spe-stat-value--success">
-                        <span className="fr-icon-checkbox-circle-fill fr-icon--sm fr-mr-1v" aria-hidden="true"></span>{speStats.BLANC}
+                  {errorStats.total > 0 ? (
+                    <>
+                      <p className="fr-mb-1w">
+                        {errorStats.total === 1
+                          ? '1 établissement avec information à corriger'
+                          : `${errorStats.total} établissements avec informations à corriger`}
                       </p>
-                    </div>
-                    <div className="fr-col-6" style={{ textAlign: 'center' }}>
-                      <p className="spe-stat-label">À vérifier</p>
-                      <p className="spe-stat-value spe-stat-value--warning">
-                        <span className="fr-icon-question-fill fr-icon--sm fr-mr-1v" aria-hidden="true"></span>{speStats.ORANGE}
-                      </p>
-                    </div>
-                  </div>
-                  {checkingSirets && (
-                    <p className="spe-stat-detail fr-mt-2w">Vérification en cours ({checkingProgress})</p>
+                      <ul className="fr-text--sm fr-mb-0">
+                        {errorStats.errors.siret > 0 && <li><strong>SIRET manquant</strong> : {errorStats.errors.siret}</li>}
+                        {errorStats.errors.no_active_manager > 0 && <li><strong>Gestionnaire non actif</strong> : {errorStats.errors.no_active_manager}</li>}
+                        {errorStats.errors.name > 0 && <li>Nom manquant : {errorStats.errors.name}</li>}
+                        {errorStats.errors.daily_meal_count > 0 && <li>Couverts/jour manquant : {errorStats.errors.daily_meal_count}</li>}
+                        {errorStats.errors.production_type > 0 && <li>Type de production manquant : {errorStats.errors.production_type}</li>}
+                        {errorStats.errors.management_type > 0 && <li>Type de gestion manquant : {errorStats.errors.management_type}</li>}
+                        {errorStats.errors.economic_model > 0 && <li>Modèle économique manquant : {errorStats.errors.economic_model}</li>}
+                        {errorStats.errors.economic_model_private > 0 && <li>Modèle économique non public : {errorStats.errors.economic_model_private}</li>}
+                        {errorStats.errors.multiple_sectors > 0 && <li>Plusieurs secteurs renseignés : {errorStats.errors.multiple_sectors}</li>}
+                      </ul>
+                    </>
+                  ) : (
+                    <p className="fr-mb-0" style={{ color: 'var(--text-default-success)' }}>
+                      <span className="fr-icon-checkbox-circle-fill fr-icon--sm fr-mr-1v" aria-hidden="true"></span>
+                      Aucune erreur détectée sur les informations des établissements.
+                    </p>
                   )}
                 </div>
               </div>
-
-              {errorStats.total > 0 ? (
-                <div className="fr-alert fr-alert--error" style={{ flex: 1, marginBottom: 0 }}>
-                  <p className="fr-alert__title">
-                    {errorStats.total === 1
-                      ? '1 établissement avec information à corriger'
-                      : `${errorStats.total} établissements avec informations à corriger`}
-                  </p>
-                  <ul className="fr-mt-2w">
-                    {errorStats.errors.no_active_manager > 0 && <li>Gestionnaire non actif : {errorStats.errors.no_active_manager}</li>}
-                    {errorStats.errors.siret > 0 && <li>SIRET manquant : {errorStats.errors.siret}</li>}
-                    {errorStats.errors.name > 0 && <li>Nom manquant : {errorStats.errors.name}</li>}
-                    {errorStats.errors.daily_meal_count > 0 && <li>Couverts/jour manquant : {errorStats.errors.daily_meal_count}</li>}
-                    {errorStats.errors.production_type > 0 && <li>Type de production manquant : {errorStats.errors.production_type}</li>}
-                    {errorStats.errors.management_type > 0 && <li>Type de gestion manquant : {errorStats.errors.management_type}</li>}
-                    {errorStats.errors.economic_model > 0 && <li>Modèle économique manquant : {errorStats.errors.economic_model}</li>}
-                    {errorStats.errors.economic_model_private > 0 && <li>Modèle économique non public : {errorStats.errors.economic_model_private}</li>}
-                    {errorStats.errors.multiple_sectors > 0 && <li>Plusieurs secteurs renseignés : {errorStats.errors.multiple_sectors}</li>}
-                  </ul>
-                </div>
-              ) : (
-                <div className="fr-alert fr-alert--success" style={{ flex: 1, marginBottom: 0 }}>
-                  <p>Aucune erreur détectée sur les informations des établissements.</p>
-                </div>
-              )}
             </div>
           </div>
+
+          {/* Statistiques agrégées EGalim */}
+          {isTDDataAvailable && egalimStats.totalWithData > 0 && (
+            <div className="fr-grid-row fr-grid-row--gutters fr-mb-4w" style={{ alignItems: 'stretch' }}>
+              <div className="fr-col-12 fr-col-md-6" style={{ display: 'flex' }}>
+                <div className="fr-callout" style={{ flex: 1, marginBottom: 0 }}>
+                  <p className="fr-callout__title">Statistiques agrégées EGalim ({selectedYear})</p>
+                  <div className="fr-callout__text">
+                    <p className="fr-mb-2w">
+                      <span className={egalimStats.bio.count > 0 ? 'spe-stat-value--success' : 'spe-stat-value--warning'}>
+                        {egalimStats.bio.pct} % ({egalimStats.bio.count})
+                      </span>
+                      {' '}des établissements atteignent l'objectif d'approvisionnement en produits bio ({EGALIM_OBJECTIVES.bio} %)
+                    </p>
+                    <p className="fr-mb-0">
+                      <span className={egalimStats.durable.count > 0 ? 'spe-stat-value--success' : 'spe-stat-value--warning'}>
+                        {egalimStats.durable.pct} % ({egalimStats.durable.count})
+                      </span>
+                      {' '}des établissements atteignent l'objectif d'approvisionnement en produits durables et de qualité, dont bio ({EGALIM_OBJECTIVES.durable} %)
+                    </p>
+                    <p className="fr-text--xs fr-mt-2w fr-mb-0" style={{ color: '#666' }}>
+                      Basé sur {egalimStats.totalWithData} établissements ayant télédéclaré
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="fr-col-12 fr-col-md-6" style={{ display: 'flex' }}>
+                <div className="fr-callout" style={{ flex: 1, marginBottom: 0 }}>
+                  <p className="fr-callout__title">Évolution des télédéclarations</p>
+                  <div className="fr-callout__text">
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', height: '100px', marginBottom: '0.5rem' }}>
+                      {tdHistory.map(({ year, count }) => {
+                        const maxCount = Math.max(...tdHistory.map(h => h.count), 1);
+                        const heightPct = (count / maxCount) * 100;
+                        const isSelected = year === selectedYear;
+                        return (
+                          <div key={year} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <span className="fr-text--xs fr-text--bold" style={{ marginBottom: '4px' }}>{count}</span>
+                            <div
+                              style={{
+                                width: '100%',
+                                height: `${heightPct}%`,
+                                minHeight: '4px',
+                                backgroundColor: isSelected ? 'var(--background-action-high-blue-france)' : 'var(--background-contrast-grey)',
+                                borderRadius: '2px'
+                              }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      {tdHistory.map(({ year }) => (
+                        <div key={year} style={{ flex: 1, textAlign: 'center' }}>
+                          <span className="fr-text--xs">{year}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Tableau des établissements */}
           <div className="fr-mb-4w">
@@ -988,6 +1101,18 @@ export function App() {
                     </button>
                   </div>
                 )}
+                {isTDDataAvailable && (
+                  <div className="fr-col-auto">
+                    <button
+                      className="fr-btn fr-btn--secondary fr-btn--sm fr-btn--icon-left fr-icon-download-line"
+                      onClick={handleEnrichedExport}
+                      disabled={downloading !== null}
+                      title="CSV avec historique EGalim par année, écarts par rapport aux objectifs et statut de conformité"
+                    >
+                      {downloading === 'enriched' ? 'Téléchargement...' : 'Télécharger le CSV enrichi'}
+                    </button>
+                  </div>
+                )}
                 <div className="fr-col-auto">
                   <a href="https://ma-cantine.crisp.help/fr/article/comment-importer-un-fichier-csv-dans-excel-7zyxo/#1-ouvrir-un-fichier-csv-sur-excel" target="_blank" rel="noopener noreferrer" title="Comment importer un CSV dans Excel - nouvelle fenêtre" className="fr-link fr-text--xs">
                     Comment importer un CSV dans Excel ?
@@ -1000,7 +1125,6 @@ export function App() {
               <table>
                 <thead>
                   <tr>
-                    <th scope="col">SPE</th>
                     <th scope="col">Nom</th>
                     <th scope="col">SIRET</th>
                     <th scope="col">Ville</th>
@@ -1024,18 +1148,6 @@ export function App() {
                 <tbody>
                   {displayedData.map((row, i) => (
                     <tr key={row.id || i} className={getRowClassName(row)}>
-                      <td style={{ textAlign: 'center' }}>
-                        {getSpeBadge(row) ? (
-                          <span
-                            className={getSpeBadge(row).icon}
-                            title={getSpeBadge(row).text}
-                            style={{ color: getSpeBadge(row).color }}
-                            aria-label={getSpeBadge(row).text}
-                          ></span>
-                        ) : (
-                          <span className="spe-spinner" style={{ width: '1rem', height: '1rem' }}></span>
-                        )}
-                      </td>
                       <td className="spe-word-break" style={{ maxWidth: '12.5rem' }}>
                         {isMissing(row.name) ? <span className="spe-text-error"><span className="fr-icon-warning-fill fr-icon--sm" aria-hidden="true"></span> -</span> : row.name}
                       </td>
@@ -1090,8 +1202,10 @@ export function App() {
                               const td = teledeclarations[row.siret]?.[selectedYear];
                               if (!td || td.ratio_bio === null || td.ratio_bio === undefined) return '-';
                               const pctValue = Number(td.ratio_bio) * 100;
-                              const isGood = pctValue >= 20;
-                              return <span style={{ color: isGood ? 'var(--text-default-success)' : 'var(--text-default-warning)' }}>{formatPct(pctValue)}</span>;
+                              const color = pctValue >= 20 ? 'var(--text-default-success)' :
+                                            pctValue >= 10 ? 'var(--text-default-warning)' :
+                                            'var(--text-default-error)';
+                              return <span style={{ color }}>{formatPct(pctValue)}</span>;
                             })()}
                           </td>
                           <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
@@ -1110,8 +1224,10 @@ export function App() {
                               const egalim = td.ratio_egalim ? Number(td.ratio_egalim) * 100 : 0;
                               if (td.ratio_bio === null && td.ratio_egalim === null) return '-';
                               const total = bio + egalim;
-                              const isGood = total >= 50;
-                              return <span style={{ color: isGood ? 'var(--text-default-success)' : 'var(--text-default-warning)' }}>{formatPct(total)}</span>;
+                              const color = total >= 50 ? 'var(--text-default-success)' :
+                                            total >= 25 ? 'var(--text-default-warning)' :
+                                            'var(--text-default-error)';
+                              return <span style={{ color }}>{formatPct(total)}</span>;
                             })()}
                           </td>
                         </>
