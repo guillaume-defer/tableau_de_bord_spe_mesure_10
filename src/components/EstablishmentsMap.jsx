@@ -602,7 +602,7 @@ const EstablishmentsMapInner = ({ data, components }) => {
   return (
     <>
       {loading && (
-        <div className="fr-callout fr-callout--brown-caramel fr-mb-2w" style={{ padding: '1rem' }}>
+        <div className="fr-callout fr-callout--green-tilleul-verveine fr-mb-2w" style={{ padding: '1rem' }}>
           <p className="fr-mb-0">
             <span className="spe-spinner fr-mr-2w" style={{ width: '1rem', height: '1rem' }} aria-hidden="true"></span>
             {progress || 'Chargement de la carte...'}
@@ -732,7 +732,7 @@ export const EstablishmentsMap = ({ data, title = "Carte des établissements" })
       )}
 
       {!loadError && !leafletReady && (
-        <div className="fr-callout fr-callout--brown-caramel fr-mb-2w" style={{ padding: '1rem' }}>
+        <div className="fr-callout fr-callout--green-tilleul-verveine fr-mb-2w" style={{ padding: '1rem' }}>
           <p className="fr-mb-0">
             <span className="spe-spinner fr-mr-2w" style={{ width: '1rem', height: '1rem' }} aria-hidden="true"></span>
             Chargement de la carte...
