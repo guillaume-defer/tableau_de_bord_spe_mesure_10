@@ -317,45 +317,28 @@ export function App() {
       production_type: 0, management_type: 0, economic_model: 0,
       economic_model_private: 0, multiple_sectors: 0
     };
-    // Poids des erreurs par impact (erreurs critiques = poids élevé)
-    const weights = {
-      siret: 3,              // Critique: identifiant unique
-      no_active_manager: 2,  // Important: pas de gestionnaire actif
-      name: 2,               // Important: identification
-      daily_meal_count: 1,   // Moyen: statistiques
-      production_type: 1,
-      management_type: 1,
-      economic_model: 1,
-      economic_model_private: 0.5, // Faible: avertissement
-      multiple_sectors: 0.5
-    };
     let total = 0;
-    let totalWeightedErrors = 0;
-    const maxWeightedErrorsPerRow = Object.values(weights).reduce((a, b) => a + b, 0);
 
     filteredData.forEach(row => {
       let hasError = false;
-      let rowWeightedErrors = 0;
 
-      if (!isTrueValue(row.active_on_ma_cantine)) { errors.no_active_manager++; rowWeightedErrors += weights.no_active_manager; hasError = true; }
-      if (isMissing(row.siret)) { errors.siret++; rowWeightedErrors += weights.siret; hasError = true; }
-      if (isMissing(row.name)) { errors.name++; rowWeightedErrors += weights.name; hasError = true; }
-      if (isMissing(row.daily_meal_count)) { errors.daily_meal_count++; rowWeightedErrors += weights.daily_meal_count; hasError = true; }
-      if (isMissing(row.production_type)) { errors.production_type++; rowWeightedErrors += weights.production_type; hasError = true; }
-      if (isMissing(row.management_type)) { errors.management_type++; rowWeightedErrors += weights.management_type; hasError = true; }
-      if (isMissing(row.economic_model)) { errors.economic_model++; rowWeightedErrors += weights.economic_model; hasError = true; }
-      else if (row.economic_model !== 'public') { errors.economic_model_private++; rowWeightedErrors += weights.economic_model_private; hasError = true; }
-      if (hasMultipleSectors(row.sector_list)) { errors.multiple_sectors++; rowWeightedErrors += weights.multiple_sectors; hasError = true; }
+      if (!isTrueValue(row.active_on_ma_cantine)) { errors.no_active_manager++; hasError = true; }
+      if (isMissing(row.siret)) { errors.siret++; hasError = true; }
+      if (isMissing(row.name)) { errors.name++; hasError = true; }
+      if (isMissing(row.daily_meal_count)) { errors.daily_meal_count++; hasError = true; }
+      if (isMissing(row.production_type)) { errors.production_type++; hasError = true; }
+      if (isMissing(row.management_type)) { errors.management_type++; hasError = true; }
+      if (isMissing(row.economic_model)) { errors.economic_model++; hasError = true; }
+      else if (row.economic_model !== 'public') { errors.economic_model_private++; hasError = true; }
+      if (hasMultipleSectors(row.sector_list)) { errors.multiple_sectors++; hasError = true; }
 
       if (hasError) total++;
-      totalWeightedErrors += rowWeightedErrors;
     });
 
-    // Score qualité: 100% = aucune erreur, 0% = toutes les erreurs possibles
-    const maxPossibleErrors = filteredData.length * maxWeightedErrorsPerRow;
-    const qualityScore = maxPossibleErrors > 0
-      ? Math.round(((maxPossibleErrors - totalWeightedErrors) / maxPossibleErrors) * 100)
-      : 100;
+    // Score qualité: (établissements avec au moins une erreur / total) * 100
+    const qualityScore = filteredData.length > 0
+      ? Math.round((total / filteredData.length) * 100)
+      : 0;
 
     return { errors, total, qualityScore };
   }, [filteredData]);
@@ -879,12 +862,12 @@ export function App() {
                   Qualité des données
                   <span
                     className={`fr-badge ${
-                      errorStats.qualityScore >= 90 ? 'fr-badge--success' :
-                      errorStats.qualityScore >= 70 ? 'fr-badge--warning' :
+                      errorStats.qualityScore <= 10 ? 'fr-badge--success' :
+                      errorStats.qualityScore <= 30 ? 'fr-badge--warning' :
                       'fr-badge--error'
                     }`}
                   >
-                    {errorStats.qualityScore}%
+                    {errorStats.qualityScore}% avec erreurs
                   </span>
                 </p>
                 <div className="fr-callout__text">
@@ -986,22 +969,22 @@ export function App() {
                     <table>
                 <thead>
                   <tr>
-                    <th scope="col">Nom</th>
-                    <th scope="col">SIRET</th>
-                    <th scope="col">Ville</th>
-                    <th scope="col">Département</th>
-                    <th scope="col">Secteur</th>
-                    <th scope="col">Type gestion</th>
-                    <th scope="col" style={{ minWidth: '100px' }}>Modèle éco.</th>
-                    <th scope="col" style={{ textAlign: 'center', minWidth: '70px' }}>Actif</th>
+                    <th scope="col" style={{ minWidth: '200px', width: '200px' }}>Nom</th>
+                    <th scope="col" style={{ minWidth: '140px', width: '140px' }}>SIRET</th>
+                    <th scope="col" style={{ minWidth: '120px', width: '120px' }}>Ville</th>
+                    <th scope="col" style={{ minWidth: '130px', width: '130px' }}>Département</th>
+                    <th scope="col" style={{ minWidth: '150px', width: '150px' }}>Secteur</th>
+                    <th scope="col" style={{ minWidth: '120px', width: '120px' }}>Type gestion</th>
+                    <th scope="col" style={{ minWidth: '100px', width: '100px' }}>Modèle éco.</th>
+                    <th scope="col" style={{ minWidth: '70px', width: '70px', textAlign: 'center' }}>Actif</th>
                     {availableYears.map(y => (
-                      <th key={y} scope="col" style={{ textAlign: 'center' }}>{y}</th>
+                      <th key={y} scope="col" style={{ minWidth: '60px', width: '60px', textAlign: 'center' }}>{y}</th>
                     ))}
                     {isTDDataAvailable && (
                       <>
-                        <th scope="col" style={{ textAlign: 'center' }} title={`% achats Bio (données ${selectedYear})`}>% Bio ({selectedYear})</th>
-                        <th scope="col" style={{ textAlign: 'center' }} title={`% achats EGalim hors bio (données ${selectedYear})`}>% Qualité hors bio ({selectedYear})</th>
-                        <th scope="col" style={{ textAlign: 'center' }} title={`% total EGalim incluant bio (données ${selectedYear})`}>% EGalim total ({selectedYear})</th>
+                        <th scope="col" style={{ minWidth: '100px', width: '100px', textAlign: 'center' }} title={`% achats Bio (données ${selectedYear})`}>% Bio ({selectedYear})</th>
+                        <th scope="col" style={{ minWidth: '160px', width: '160px', textAlign: 'center' }} title={`% achats EGalim hors bio (données ${selectedYear})`}>% Qualité hors bio ({selectedYear})</th>
+                        <th scope="col" style={{ minWidth: '140px', width: '140px', textAlign: 'center' }} title={`% total EGalim incluant bio (données ${selectedYear})`}>% EGalim total ({selectedYear})</th>
                       </>
                     )}
                   </tr>
@@ -1009,29 +992,29 @@ export function App() {
                 <tbody>
                   {displayedData.map((row, i) => (
                     <tr key={row.id || i} className={getRowClassName(row)}>
-                      <td className="spe-word-break">
+                      <td className="spe-word-break" style={{ minWidth: '200px', width: '200px' }}>
                         {isMissing(row.name) ? <span className="spe-text-error"><span className="fr-icon-warning-fill fr-icon--sm" aria-hidden="true"></span> -</span> : row.name}
                       </td>
-                      <td className="spe-text-mono">
+                      <td className="spe-text-mono" style={{ minWidth: '140px', width: '140px' }}>
                         {isMissing(row.siret) ? <span className="spe-text-error"><span className="fr-icon-warning-fill fr-icon--sm" aria-hidden="true"></span> -</span> : row.siret}
                       </td>
-                      <td>{row.city || '-'}</td>
-                      <td>{row.department_lib || '-'}</td>
-                      <td className="spe-word-break">
+                      <td style={{ minWidth: '120px', width: '120px' }}>{row.city || '-'}</td>
+                      <td style={{ minWidth: '130px', width: '130px' }}>{row.department_lib || '-'}</td>
+                      <td className="spe-word-break" style={{ minWidth: '150px', width: '150px' }}>
                         {hasMultipleSectors(row.sector_list) ? (
                           <span className="spe-text-error"><span className="fr-icon-warning-fill fr-icon--sm" aria-hidden="true"></span> {row.sector_list}</span>
                         ) : (
                           row.sector_list || '-'
                         )}
                       </td>
-                      <td>
+                      <td style={{ minWidth: '120px', width: '120px' }}>
                         {isMissing(row.management_type) ? (
                           <span className="spe-text-error"><span className="fr-icon-warning-fill fr-icon--sm" aria-hidden="true"></span> -</span>
                         ) : (
                           translateManagementType(row.management_type)
                         )}
                       </td>
-                      <td style={{ minWidth: '100px' }}>
+                      <td style={{ minWidth: '100px', width: '100px' }}>
                         {isMissing(row.economic_model) ? (
                           <span className="spe-text-error"><span className="fr-icon-warning-fill fr-icon--sm" aria-hidden="true"></span> -</span>
                         ) : row.economic_model !== 'public' ? (
@@ -1040,7 +1023,7 @@ export function App() {
                           <span style={{ color: 'var(--text-default-success)' }}>public</span>
                         )}
                       </td>
-                      <td style={{ textAlign: 'center', minWidth: '70px' }}>
+                      <td style={{ minWidth: '70px', width: '70px', textAlign: 'center' }}>
                         {isTrueValue(row.active_on_ma_cantine) ? (
                           <span style={{ color: 'var(--text-default-success)' }}>oui</span>
                         ) : (
@@ -1048,7 +1031,7 @@ export function App() {
                         )}
                       </td>
                       {availableYears.map(y => (
-                        <td key={y} style={{ textAlign: 'center' }}>
+                        <td key={y} style={{ minWidth: '60px', width: '60px', textAlign: 'center' }}>
                           {hasTeledeclaration(row, y) ? (
                             <span className="fr-icon-checkbox-circle-fill fr-icon--sm" style={{ color: 'var(--text-default-success)' }} aria-label="Oui"></span>
                           ) : (
@@ -1058,7 +1041,7 @@ export function App() {
                       ))}
                       {isTDDataAvailable && (
                         <>
-                          <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          <td style={{ minWidth: '100px', width: '100px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                             {(() => {
                               const td = teledeclarations[row.siret]?.[selectedYear];
                               if (!td || td.ratio_bio === null || td.ratio_bio === undefined) return '-';
@@ -1069,7 +1052,7 @@ export function App() {
                               return <span style={{ color }}>{formatPct(pctValue)}</span>;
                             })()}
                           </td>
-                          <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          <td style={{ minWidth: '160px', width: '160px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                             {(() => {
                               const td = teledeclarations[row.siret]?.[selectedYear];
                               if (!td || td.ratio_egalim === null || td.ratio_egalim === undefined) return '-';
@@ -1077,7 +1060,7 @@ export function App() {
                               return <span>{formatPct(pctValue)}</span>;
                             })()}
                           </td>
-                          <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          <td style={{ minWidth: '140px', width: '140px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                             {(() => {
                               const td = teledeclarations[row.siret]?.[selectedYear];
                               if (!td) return '-';
