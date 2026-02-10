@@ -92,6 +92,7 @@
 }
 
 /* Barre de progression EGalim style ma-cantine */
+/* Couleurs DSFR utilisées : --background-flat-success (#18753C), --background-contrast-success */
 .egalim-bar-container {
   position: relative;
   margin: 2rem 0 1rem 0;
@@ -119,14 +120,14 @@
   top: 1.5rem;
   width: 2px;
   height: calc(3rem + 8px);
-  border-left: 2px dashed #18753c;
+  border-left: 2px dashed var(--background-flat-success);
 }
 
 .egalim-bar {
   position: relative;
   height: 2.5rem;
-  background-color: #e8edff;
-  border: 2px solid #18753c;
+  background-color: var(--background-alt-blue-france);
+  border: 2px solid var(--background-flat-success);
   border-radius: 4px;
   overflow: visible;
   display: flex;
@@ -135,10 +136,10 @@
 .egalim-bar-bio {
   height: 100%;
   background: repeating-linear-gradient(90deg,
-      #18753c,
-      #18753c 8px,
-      #a3e2b8 8px,
-      #a3e2b8 16px);
+      var(--background-flat-success),
+      var(--background-flat-success) 8px,
+      var(--background-contrast-success) 8px,
+      var(--background-contrast-success) 16px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -152,7 +153,7 @@
 
 .egalim-bar-qualite {
   height: 100%;
-  background-color: #18753c;
+  background-color: var(--background-flat-success);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -186,75 +187,54 @@
 
 .egalim-bar-legend-color--bio {
   background: repeating-linear-gradient(90deg,
-      #18753c,
-      #18753c 4px,
-      #a3e2b8 4px,
-      #a3e2b8 8px);
+      var(--background-flat-success),
+      var(--background-flat-success) 4px,
+      var(--background-contrast-success) 4px,
+      var(--background-contrast-success) 8px);
 }
 
 .egalim-bar-legend-color--qualite {
-  background-color: #18753c;
+  background-color: var(--background-flat-success);
 }
 
 .egalim-bar-legend-color--objectif {
   width: 2px;
   height: 1.25rem;
-  border-left: 2px dashed #18753c;
+  border-left: 2px dashed var(--background-flat-success);
   background: transparent;
 }
 
-/* Mode sombre - barre EGalim */
-[data-fr-theme="dark"] .egalim-bar,
-[data-fr-scheme="dark"] .egalim-bar {
-  background-color: #1e3a5f;
-  border-color: #34d399;
-}
+/* Mode sombre - barre EGalim
+   Les variables DSFR s'adaptent automatiquement au mode sombre */
 
-[data-fr-theme="dark"] .egalim-bar-bio,
-[data-fr-scheme="dark"] .egalim-bar-bio {
-  background: repeating-linear-gradient(90deg,
-      #059669,
-      #059669 8px,
-      #065f46 8px,
-      #065f46 16px);
-}
-
-[data-fr-theme="dark"] .egalim-bar-qualite,
-[data-fr-scheme="dark"] .egalim-bar-qualite {
-  background-color: #059669;
-}
-
-[data-fr-theme="dark"] .egalim-bar-objective::after,
-[data-fr-scheme="dark"] .egalim-bar-objective::after {
-  border-left-color: #34d399;
-}
-
-/* Tableau - Lignes colorées selon statut (couleurs lisibles) */
+/* Tableau - Lignes colorées selon statut
+   Note: Les couleurs de fond des lignes utilisent les variables DSFR de contraste
+   pour assurer une bonne lisibilité du texte (WCAG AA) */
 .spe-row-error {
-  background-color: #fecaca !important;
+  background-color: var(--background-contrast-error) !important;
 }
 
 .spe-row-warning {
-  background-color: #fef3c7 !important;
+  background-color: var(--background-contrast-warning) !important;
 }
 
 .spe-row-success {
-  background-color: #d1fae5 !important;
+  background-color: var(--background-contrast-success) !important;
 }
 
 .spe-row-excluded {
-  background-color: #e5e5e5 !important;
-  color: #555555 !important; /* Contraste amélioré pour WCAG AA (4.5:1) */
+  background-color: var(--background-disabled-grey) !important;
+  color: var(--text-disabled-grey) !important;
   opacity: 0.8;
 }
 
 .spe-row-excluded td {
-  color: #555555 !important;
+  color: var(--text-disabled-grey) !important;
 }
 
 /* Texte d'erreur visible sur fond clair */
 .spe-text-error {
-  color: #b91c1c !important;
+  color: var(--text-default-error);
   font-weight: 500;
 }
 
@@ -316,71 +296,14 @@
   margin-left: 0.5rem;
 }
 
-/* Mode sombre - adaptation des couleurs */
-[data-fr-theme="dark"] .spe-row-error,
-[data-fr-scheme="dark"] .spe-row-error {
-  background-color: #450a0a !important;
-  color: #fecaca !important;
-}
-
-[data-fr-theme="dark"] .spe-row-error td,
-[data-fr-scheme="dark"] .spe-row-error td {
-  color: #fecaca !important;
-}
-
-[data-fr-theme="dark"] .spe-row-warning,
-[data-fr-scheme="dark"] .spe-row-warning {
-  background-color: #451a03 !important;
-  color: #fef3c7 !important;
-}
-
-[data-fr-theme="dark"] .spe-row-warning td,
-[data-fr-scheme="dark"] .spe-row-warning td {
-  color: #fef3c7 !important;
-}
-
-[data-fr-theme="dark"] .spe-row-success,
-[data-fr-scheme="dark"] .spe-row-success {
-  background-color: #022c22 !important;
-  color: #d1fae5 !important;
-}
-
-[data-fr-theme="dark"] .spe-row-success td,
-[data-fr-scheme="dark"] .spe-row-success td {
-  color: #d1fae5 !important;
-}
-
-[data-fr-theme="dark"] .spe-row-excluded,
-[data-fr-scheme="dark"] .spe-row-excluded {
-  background-color: #374151 !important;
-  color: #9ca3af !important;
-}
-
-[data-fr-theme="dark"] .spe-row-excluded td,
-[data-fr-scheme="dark"] .spe-row-excluded td {
-  color: #9ca3af !important;
-}
-
-[data-fr-theme="dark"] .spe-text-error,
-[data-fr-scheme="dark"] .spe-text-error {
-  color: #fca5a5 !important;
-}
+/* Mode sombre - Les variables DSFR s'adaptent automatiquement */
 
 [data-fr-theme="dark"] .spe-chart-container,
 [data-fr-scheme="dark"] .spe-chart-container {
   background-color: var(--background-alt-grey);
 }
 
-/* Assurer que les icônes restent visibles en mode sombre */
-[data-fr-theme="dark"] .spe-row-error .fr-icon-warning-fill,
-[data-fr-scheme="dark"] .spe-row-error .fr-icon-warning-fill {
-  color: #fca5a5 !important;
-}
-
-[data-fr-theme="dark"] .spe-row-success .fr-icon-checkbox-circle-fill,
-[data-fr-scheme="dark"] .spe-row-success .fr-icon-checkbox-circle-fill {
-  color: #6ee7b7 !important;
-}
+/* Les icônes DSFR s'adaptent automatiquement au mode sombre */
 
 /* Échantillons de couleur pour la légende */
 .spe-legend-color {
@@ -391,38 +314,21 @@
 }
 
 .spe-legend-color--error {
-  background-color: #fecaca;
-  color: #1f2937;
+  background-color: var(--background-contrast-error);
+  color: var(--text-label-grey);
 }
 
 .spe-legend-color--warning {
-  background-color: #fef3c7;
-  color: #1f2937;
+  background-color: var(--background-contrast-warning);
+  color: var(--text-label-grey);
 }
 
 .spe-legend-color--success {
-  background-color: #d1fae5;
-  color: #1f2937;
+  background-color: var(--background-contrast-success);
+  color: var(--text-label-grey);
 }
 
-/* Mode sombre - échantillons de couleur légende */
-[data-fr-theme="dark"] .spe-legend-color--error,
-[data-fr-scheme="dark"] .spe-legend-color--error {
-  background-color: #450a0a;
-  color: #fecaca;
-}
-
-[data-fr-theme="dark"] .spe-legend-color--warning,
-[data-fr-scheme="dark"] .spe-legend-color--warning {
-  background-color: #451a03;
-  color: #fef3c7;
-}
-
-[data-fr-theme="dark"] .spe-legend-color--success,
-[data-fr-scheme="dark"] .spe-legend-color--success {
-  background-color: #022c22;
-  color: #d1fae5;
-}
+/* Mode sombre - Les variables DSFR s'adaptent automatiquement pour les légendes */
 
 /* ============================================
    CARTE LEAFLET - STYLES DES CLUSTERS
@@ -458,14 +364,14 @@
 .spe-marker-cluster-medium {
   width: 40px;
   height: 40px;
-  background-color: #6366f1;
+  background-color: var(--background-active-blue-france);
   font-size: 0.75rem;
 }
 
 .spe-marker-cluster-large {
   width: 50px;
   height: 50px;
-  background-color: #4f46e5;
+  background-color: var(--background-active-blue-france-hover);
   font-size: 0.875rem;
 }
 
@@ -490,20 +396,4 @@
   line-height: 1.4;
 }
 
-/* Mode sombre - clusters */
-[data-fr-theme="dark"] .spe-marker-cluster,
-[data-fr-scheme="dark"] .spe-marker-cluster {
-  background-color: #6366f1;
-  border-color: #1e1e1e;
-}
-
-[data-fr-theme="dark"] .spe-marker-cluster-medium,
-[data-fr-scheme="dark"] .spe-marker-cluster-medium {
-  background-color: #818cf8;
-}
-
-[data-fr-theme="dark"] .spe-marker-cluster-large,
-[data-fr-scheme="dark"] .spe-marker-cluster-large {
-  background-color: #a5b4fc;
-  color: #1e1e1e;
-}
+/* Mode sombre - Les variables DSFR s'adaptent automatiquement pour les clusters */

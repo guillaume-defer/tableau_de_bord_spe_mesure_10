@@ -713,26 +713,36 @@ export function App() {
       {/* Sélection du périmètre */}
       <div className="fr-grid-row fr-grid-row--gutters fr-mb-4w">
         <div className="fr-col-12 fr-col-md-4">
-          <fieldset className="fr-fieldset">
-            <legend className="fr-fieldset__legend fr-text--bold">Périmètre d'analyse</legend>
-            <div className="fr-fieldset__content">
-              <div className="fr-btns-group fr-btns-group--inline-sm">
-                <button
-                  type="button"
-                  className={mode === 'ministere' ? 'fr-btn' : 'fr-btn fr-btn--secondary'}
-                  onClick={() => { setMode('ministere'); setSelectedRegion(''); setSelectedMinistere(''); setData([]); }}
-                  aria-pressed={mode === 'ministere'}
-                >
+          <fieldset className="fr-segmented fr-segmented--sm">
+            <legend className="fr-segmented__legend">
+              Périmètre d'analyse
+            </legend>
+            <div className="fr-segmented__elements">
+              <div className="fr-segmented__element">
+                <input
+                  type="radio"
+                  id="segmented-mode-ministere"
+                  name="segmented-mode"
+                  value="ministere"
+                  checked={mode === 'ministere'}
+                  onChange={() => { setMode('ministere'); setSelectedRegion(''); setSelectedMinistere(''); setData([]); }}
+                />
+                <label className="fr-label" htmlFor="segmented-mode-ministere">
                   Ministère
-                </button>
-                <button
-                  type="button"
-                  className={mode === 'region' ? 'fr-btn' : 'fr-btn fr-btn--secondary'}
-                  onClick={() => { setMode('region'); setSelectedMinistere(''); setSelectedRegion(''); setData([]); }}
-                  aria-pressed={mode === 'region'}
-                >
+                </label>
+              </div>
+              <div className="fr-segmented__element">
+                <input
+                  type="radio"
+                  id="segmented-mode-region"
+                  name="segmented-mode"
+                  value="region"
+                  checked={mode === 'region'}
+                  onChange={() => { setMode('region'); setSelectedMinistere(''); setSelectedRegion(''); setData([]); }}
+                />
+                <label className="fr-label" htmlFor="segmented-mode-region">
                   ATE Région
-                </button>
+                </label>
               </div>
             </div>
           </fieldset>
@@ -925,7 +935,7 @@ export function App() {
           {/* Légende et statistiques */}
           <div className="fr-grid-row fr-grid-row--gutters fr-mb-4w" style={{ alignItems: 'stretch' }}>
             <div className="fr-col-12 fr-col-md-6" style={{ display: 'flex' }}>
-              <div className="fr-callout fr-callout--brown-caramel" style={{ flex: 1, marginBottom: 0 }}>
+              <div className="fr-callout fr-callout--green-tilleul-verveine" style={{ flex: 1, marginBottom: 0 }}>
                 <p className="fr-callout__title">Légende</p>
                 <div className="fr-callout__text">
                   <p className="fr-mb-1w"><strong>Couleurs des lignes :</strong></p>
@@ -1069,11 +1079,10 @@ export function App() {
                     name="search-table"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    aria-describedby="search-help"
                   />
-                  <span id="search-help" className="fr-hint-text" style={{ display: 'none' }}>
-                    La recherche s'effectue automatiquement
-                  </span>
+                  <button className="fr-btn" type="button" title="Rechercher" onClick={() => {}}>
+                    Rechercher
+                  </button>
                 </div>
               </div>
             </div>
@@ -1121,8 +1130,11 @@ export function App() {
               </div>
             </div>
 
-            <div className="fr-table fr-table--bordered" style={{ overflowX: 'auto' }}>
-              <table>
+            <div className="fr-table fr-table--bordered">
+              <div className="fr-table__wrapper">
+                <div className="fr-table__container">
+                  <div className="fr-table__content">
+                    <table>
                 <thead>
                   <tr>
                     <th scope="col">Nom</th>
@@ -1235,7 +1247,10 @@ export function App() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+                    </table>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Bouton Afficher plus */}
