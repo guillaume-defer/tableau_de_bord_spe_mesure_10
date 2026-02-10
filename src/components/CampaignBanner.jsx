@@ -4,20 +4,30 @@ import { API_PROXY } from '../utils/constants';
 export function CampaignBanner() {
   const [campaign, setCampaign] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchCampaign = async () => {
       try {
         // Récupérer la campagne de l'année en cours
         const currentYear = new Date().getFullYear();
-        const response = await fetch(`${API_PROXY}?source=ma-cantine&endpoint=campaignDates&year=${currentYear}`);
+        const url = `${API_PROXY}?source=ma-cantine&endpoint=campaignDates&year=${currentYear}`;
+
+        console.log('[CampaignBanner] Fetching:', url);
+        const response = await fetch(url);
 
         if (response.ok) {
           const data = await response.json();
+          console.log('[CampaignBanner] Response:', data);
           setCampaign(data);
+        } else {
+          const errorText = await response.text();
+          console.error('[CampaignBanner] API error:', response.status, errorText);
+          setError(`Erreur API: ${response.status}`);
         }
       } catch (e) {
-        console.error('Erreur chargement campagne:', e);
+        console.error('[CampaignBanner] Fetch error:', e);
+        setError(e.message);
       } finally {
         setLoading(false);
       }
@@ -26,9 +36,17 @@ export function CampaignBanner() {
     fetchCampaign();
   }, []);
 
+  // Ne rien afficher pendant le chargement
   if (loading) return null;
 
+  // En cas d'erreur, ne rien afficher (le bandeau n'est pas critique)
+  if (error) {
+    console.warn('[CampaignBanner] Erreur, bandeau non affiché:', error);
+    return null;
+  }
+
   const formatDate = (dateStr) => {
+    if (!dateStr) return '';
     return new Date(dateStr).toLocaleDateString('fr-FR', {
       day: 'numeric',
       month: 'long',
