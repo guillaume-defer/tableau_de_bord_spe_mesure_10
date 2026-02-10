@@ -133,11 +133,21 @@ export function App() {
   // CHARGEMENT DES DONNÉES
   // ==========================================
 
-  // Date de mise à jour (utiliser last_update du dataset, pas created_at de la ressource tabular)
+  // Date de mise à jour (utiliser created_at de l'API tabular pour cohérence avec data.gouv.fr)
   useEffect(() => {
     const fetchLastUpdate = async () => {
       try {
-        // Priorité 1: Date de mise à jour du dataset (reflète la dernière MAJ de n'importe quelle ressource)
+        // Priorité 1: Date de disponibilité dans l'API tabular (cohérent avec le site data.gouv.fr)
+        const tabularResponse = await fetch(`https://tabular-api.data.gouv.fr/api/resources/${DATAGOUV_RESOURCE_ID}/`);
+        if (tabularResponse.ok) {
+          const tabularData = await tabularResponse.json();
+          if (tabularData.created_at) {
+            setLastUpdate(tabularData.created_at);
+            return;
+          }
+        }
+
+        // Fallback: last_update du dataset
         const response = await fetch(`https://www.data.gouv.fr/api/1/datasets/${DATAGOUV_DATASET_ID}/`);
         if (response.ok) {
           const data = await response.json();
@@ -149,16 +159,6 @@ export function App() {
           const resource = data.resources?.find(r => r.id === DATAGOUV_RESOURCE_ID);
           if (resource?.last_modified) {
             setLastUpdate(resource.last_modified);
-            return;
-          }
-        }
-
-        // Fallback: created_at de l'API tabular (moins fiable)
-        const tabularResponse = await fetch(`https://tabular-api.data.gouv.fr/api/resources/${DATAGOUV_RESOURCE_ID}/`);
-        if (tabularResponse.ok) {
-          const tabularData = await tabularResponse.json();
-          if (tabularData.created_at) {
-            setLastUpdate(tabularData.created_at);
           }
         }
       } catch (e) {
