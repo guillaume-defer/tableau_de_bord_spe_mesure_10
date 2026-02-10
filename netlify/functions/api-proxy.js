@@ -31,9 +31,9 @@ exports.handler = async (event) => {
     '2021': 'efe63a1a-c307-4238-81b0-ffa8536163c7'  // Campagne 2022 sur données 2021
   };
 
-  // Ressource du Registre National des Cantines (Parquet - le CSV a été supprimé, le XLSX est corrompu)
+  // Ressource du Registre National des Cantines (XLSX - le Parquet n'est plus mis à jour depuis le 20/01/2026)
   const CANTINES_RESOURCES = [
-    'efbc5aaa-e044-4044-a33a-c570e9d688b4'  // Parquet
+    '408dca92-9028-4f66-93bf-f671111393ec'  // XLSX (mis à jour quotidiennement)
   ];
 
   // Déterminer quelle ressource utiliser
