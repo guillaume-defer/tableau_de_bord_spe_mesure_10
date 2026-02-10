@@ -1,6 +1,10 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { PieChart } from './PieChart';
 import { EstablishmentsMap } from './EstablishmentsMap';
+import { EgalimStats } from './EgalimStats';
+import { CampaignBanner } from './CampaignBanner';
+import { HistoricalTrends } from './HistoricalTrends';
+import { MinistryComparison } from './MinistryComparison';
 import { useDebounce } from '../hooks/useDebounce';
 import {
   API_PROXY,
@@ -419,30 +423,54 @@ export function App() {
     return { count: riaCount, cible, pct };
   }, [mode, selectedRegion, filteredData]);
 
-  // Stats erreurs
+  // Stats erreurs avec score qualité
   const errorStats = useMemo(() => {
     const errors = {
       no_active_manager: 0, siret: 0, name: 0, daily_meal_count: 0,
       production_type: 0, management_type: 0, economic_model: 0,
       economic_model_private: 0, multiple_sectors: 0
     };
+    // Poids des erreurs par impact (erreurs critiques = poids élevé)
+    const weights = {
+      siret: 3,              // Critique: identifiant unique
+      no_active_manager: 2,  // Important: pas de gestionnaire actif
+      name: 2,               // Important: identification
+      daily_meal_count: 1,   // Moyen: statistiques
+      production_type: 1,
+      management_type: 1,
+      economic_model: 1,
+      economic_model_private: 0.5, // Faible: avertissement
+      multiple_sectors: 0.5
+    };
     let total = 0;
+    let totalWeightedErrors = 0;
+    const maxWeightedErrorsPerRow = Object.values(weights).reduce((a, b) => a + b, 0);
 
     filteredData.forEach(row => {
       let hasError = false;
-      if (!isTrueValue(row.active_on_ma_cantine)) { errors.no_active_manager++; hasError = true; }
-      if (isMissing(row.siret)) { errors.siret++; hasError = true; }
-      if (isMissing(row.name)) { errors.name++; hasError = true; }
-      if (isMissing(row.daily_meal_count)) { errors.daily_meal_count++; hasError = true; }
-      if (isMissing(row.production_type)) { errors.production_type++; hasError = true; }
-      if (isMissing(row.management_type)) { errors.management_type++; hasError = true; }
-      if (isMissing(row.economic_model)) { errors.economic_model++; hasError = true; }
-      else if (row.economic_model !== 'public') { errors.economic_model_private++; hasError = true; }
-      if (hasMultipleSectors(row.sector_list)) { errors.multiple_sectors++; hasError = true; }
+      let rowWeightedErrors = 0;
+
+      if (!isTrueValue(row.active_on_ma_cantine)) { errors.no_active_manager++; rowWeightedErrors += weights.no_active_manager; hasError = true; }
+      if (isMissing(row.siret)) { errors.siret++; rowWeightedErrors += weights.siret; hasError = true; }
+      if (isMissing(row.name)) { errors.name++; rowWeightedErrors += weights.name; hasError = true; }
+      if (isMissing(row.daily_meal_count)) { errors.daily_meal_count++; rowWeightedErrors += weights.daily_meal_count; hasError = true; }
+      if (isMissing(row.production_type)) { errors.production_type++; rowWeightedErrors += weights.production_type; hasError = true; }
+      if (isMissing(row.management_type)) { errors.management_type++; rowWeightedErrors += weights.management_type; hasError = true; }
+      if (isMissing(row.economic_model)) { errors.economic_model++; rowWeightedErrors += weights.economic_model; hasError = true; }
+      else if (row.economic_model !== 'public') { errors.economic_model_private++; rowWeightedErrors += weights.economic_model_private; hasError = true; }
+      if (hasMultipleSectors(row.sector_list)) { errors.multiple_sectors++; rowWeightedErrors += weights.multiple_sectors; hasError = true; }
+
       if (hasError) total++;
+      totalWeightedErrors += rowWeightedErrors;
     });
 
-    return { errors, total };
+    // Score qualité: 100% = aucune erreur, 0% = toutes les erreurs possibles
+    const maxPossibleErrors = filteredData.length * maxWeightedErrorsPerRow;
+    const qualityScore = maxPossibleErrors > 0
+      ? Math.round(((maxPossibleErrors - totalWeightedErrors) / maxPossibleErrors) * 100)
+      : 100;
+
+    return { errors, total, qualityScore };
   }, [filteredData]);
 
   // Stats SPE
@@ -635,6 +663,9 @@ export function App() {
           </p>
         </div>
       )}
+
+      {/* Bandeau campagne en cours */}
+      <CampaignBanner />
 
       {/* Sélection du périmètre */}
       <div className="fr-grid-row fr-grid-row--gutters fr-mb-4w">
@@ -907,32 +938,71 @@ export function App() {
                 </div>
               </div>
 
-              {errorStats.total > 0 ? (
-                <div className="fr-alert fr-alert--error" style={{ flex: 1, marginBottom: 0 }}>
-                  <p className="fr-alert__title">
-                    {errorStats.total === 1
-                      ? '1 établissement avec information à corriger'
-                      : `${errorStats.total} établissements avec informations à corriger`}
-                  </p>
-                  <ul className="fr-mt-2w">
-                    {errorStats.errors.no_active_manager > 0 && <li>Gestionnaire non actif : {errorStats.errors.no_active_manager}</li>}
-                    {errorStats.errors.siret > 0 && <li>SIRET manquant : {errorStats.errors.siret}</li>}
-                    {errorStats.errors.name > 0 && <li>Nom manquant : {errorStats.errors.name}</li>}
-                    {errorStats.errors.daily_meal_count > 0 && <li>Couverts/jour manquant : {errorStats.errors.daily_meal_count}</li>}
-                    {errorStats.errors.production_type > 0 && <li>Type de production manquant : {errorStats.errors.production_type}</li>}
-                    {errorStats.errors.management_type > 0 && <li>Type de gestion manquant : {errorStats.errors.management_type}</li>}
-                    {errorStats.errors.economic_model > 0 && <li>Modèle économique manquant : {errorStats.errors.economic_model}</li>}
-                    {errorStats.errors.economic_model_private > 0 && <li>Modèle économique non public : {errorStats.errors.economic_model_private}</li>}
-                    {errorStats.errors.multiple_sectors > 0 && <li>Plusieurs secteurs renseignés : {errorStats.errors.multiple_sectors}</li>}
-                  </ul>
+              <div className="fr-callout" style={{ flex: 1, marginBottom: 0 }}>
+                <p className="fr-callout__title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  Qualité des données
+                  <span
+                    className={`fr-badge ${
+                      errorStats.qualityScore >= 90 ? 'fr-badge--success' :
+                      errorStats.qualityScore >= 70 ? 'fr-badge--warning' :
+                      'fr-badge--error'
+                    }`}
+                  >
+                    {errorStats.qualityScore}%
+                  </span>
+                </p>
+                <div className="fr-callout__text">
+                  {errorStats.total > 0 ? (
+                    <>
+                      <p className="fr-mb-1w">
+                        {errorStats.total === 1
+                          ? '1 établissement avec information à corriger'
+                          : `${errorStats.total} établissements avec informations à corriger`}
+                      </p>
+                      <ul className="fr-text--sm fr-mb-0">
+                        {errorStats.errors.siret > 0 && <li><strong>SIRET manquant</strong> : {errorStats.errors.siret}</li>}
+                        {errorStats.errors.no_active_manager > 0 && <li><strong>Gestionnaire non actif</strong> : {errorStats.errors.no_active_manager}</li>}
+                        {errorStats.errors.name > 0 && <li>Nom manquant : {errorStats.errors.name}</li>}
+                        {errorStats.errors.daily_meal_count > 0 && <li>Couverts/jour manquant : {errorStats.errors.daily_meal_count}</li>}
+                        {errorStats.errors.production_type > 0 && <li>Type de production manquant : {errorStats.errors.production_type}</li>}
+                        {errorStats.errors.management_type > 0 && <li>Type de gestion manquant : {errorStats.errors.management_type}</li>}
+                        {errorStats.errors.economic_model > 0 && <li>Modèle économique manquant : {errorStats.errors.economic_model}</li>}
+                        {errorStats.errors.economic_model_private > 0 && <li>Modèle économique non public : {errorStats.errors.economic_model_private}</li>}
+                        {errorStats.errors.multiple_sectors > 0 && <li>Plusieurs secteurs renseignés : {errorStats.errors.multiple_sectors}</li>}
+                      </ul>
+                    </>
+                  ) : (
+                    <p className="fr-mb-0" style={{ color: 'var(--text-default-success)' }}>
+                      <span className="fr-icon-checkbox-circle-fill fr-icon--sm fr-mr-1v" aria-hidden="true"></span>
+                      Aucune erreur détectée sur les informations des établissements.
+                    </p>
+                  )}
                 </div>
-              ) : (
-                <div className="fr-alert fr-alert--success" style={{ flex: 1, marginBottom: 0 }}>
-                  <p>Aucune erreur détectée sur les informations des établissements.</p>
-                </div>
-              )}
+              </div>
             </div>
           </div>
+
+          {/* Statistiques EGAlim et Historique */}
+          <div className="fr-grid-row fr-grid-row--gutters fr-mb-3w">
+            <div className="fr-col-12 fr-col-lg-6">
+              <EgalimStats
+                data={filteredData}
+                teledeclarations={teledeclarations}
+                selectedYear={selectedYear}
+              />
+            </div>
+            <div className="fr-col-12 fr-col-lg-6">
+              <HistoricalTrends data={filteredData} />
+            </div>
+          </div>
+
+          {/* Comparaison inter-ministérielle (uniquement en mode ministère) */}
+          {mode === 'ministere' && selectedMinistere && (
+            <MinistryComparison
+              selectedYear={selectedYear}
+              currentMinistry={selectedMinistere}
+            />
+          )}
 
           {/* Tableau des établissements */}
           <div className="fr-mb-4w">
