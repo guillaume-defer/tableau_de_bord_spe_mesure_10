@@ -280,7 +280,7 @@
 }
 
 /* ============================================
-   TABLEAU DES ÉTABLISSEMENTS - Layout auto
+   TABLEAU DES ÉTABLISSEMENTS - Layout fixe
    Surcharge DSFR pour éviter le chevauchement
    ============================================ */
 
@@ -297,9 +297,9 @@
   overflow: visible !important;
 }
 
-/* Tableau avec layout auto pour éviter les colonnes fantômes */
+/* Tableau avec layout fixe pour respecter les largeurs définies */
 .fr-table .fr-table__content table {
-  table-layout: auto !important;
+  table-layout: fixed !important;
   width: max-content !important;
   min-width: 100% !important;
 }
@@ -310,35 +310,26 @@
   vertical-align: middle !important;
   padding: 0.75rem 0.5rem !important;
   white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  box-sizing: border-box !important;
 }
 
 /* Colonnes avec texte long : autoriser le retour à la ligne */
 .fr-table .fr-table__content table td.spe-word-break {
   white-space: normal !important;
   word-wrap: break-word !important;
-  max-width: 250px !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
 }
 
 /* Colonne SIRET : largeur suffisante pour 14 chiffres */
 .fr-table .fr-table__content table td.spe-text-mono {
-  min-width: 130px !important;
+  min-width: 140px !important;
+  width: 140px !important;
   font-family: monospace !important;
   font-size: 0.8125rem !important;
   letter-spacing: 0.02em !important;
-}
-
-/* Colonnes Modèle éco. et Actif : largeurs fixes pour éviter chevauchement */
-.fr-table .fr-table__content table th:nth-child(7),
-.fr-table .fr-table__content table td:nth-child(7) {
-  min-width: 100px !important;
-  width: 100px !important;
-}
-
-.fr-table .fr-table__content table th:nth-child(8),
-.fr-table .fr-table__content table td:nth-child(8) {
-  min-width: 70px !important;
-  width: 70px !important;
-  text-align: center !important;
 }
 
 /* Utilitaires */
