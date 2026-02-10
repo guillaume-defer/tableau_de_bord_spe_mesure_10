@@ -932,17 +932,90 @@ export function App() {
             title="Localisation des établissements"
           />
 
-          {/* Légende et statistiques */}
+          {/* Statistiques agrégées EGalim */}
+          {isTDDataAvailable && egalimStats.totalWithData > 0 && (
+            <div className="fr-grid-row fr-grid-row--gutters fr-mb-4w" style={{ alignItems: 'stretch' }}>
+              <div className="fr-col-12 fr-col-md-6" style={{ display: 'flex' }}>
+                <div className="fr-callout" style={{ flex: 1, marginBottom: 0 }}>
+                  <p className="fr-callout__title">Statistiques agrégées EGalim ({selectedYear})</p>
+                  <div className="fr-callout__text">
+                    <p className="fr-mb-2w">
+                      <span className={egalimStats.bio.count > 0 ? 'spe-stat-value--success' : 'spe-stat-value--warning'}>
+                        {egalimStats.bio.pct} % ({egalimStats.bio.count})
+                      </span>
+                      {' '}des établissements atteignent l'objectif d'approvisionnement en produits bio ({EGALIM_OBJECTIVES.bio} %)
+                    </p>
+                    <p className="fr-mb-0">
+                      <span className={egalimStats.durable.count > 0 ? 'spe-stat-value--success' : 'spe-stat-value--warning'}>
+                        {egalimStats.durable.pct} % ({egalimStats.durable.count})
+                      </span>
+                      {' '}des établissements atteignent l'objectif d'approvisionnement en produits durables et de qualité, dont bio ({EGALIM_OBJECTIVES.durable} %)
+                    </p>
+                    <p className="fr-text--xs fr-mt-2w fr-mb-0" style={{ color: '#666' }}>
+                      Basé sur {egalimStats.totalWithData} établissements ayant télédéclaré
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="fr-col-12 fr-col-md-6" style={{ display: 'flex' }}>
+                <div className="fr-callout" style={{ flex: 1, marginBottom: 0 }}>
+                  <p className="fr-callout__title">Évolution des télédéclarations</p>
+                  <div className="fr-callout__text">
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', height: '150px', marginBottom: '0.5rem' }}>
+                      {tdHistory.map(({ year, count }) => {
+                        const maxCount = Math.max(...tdHistory.map(h => h.count), 1);
+                        const heightPct = (count / maxCount) * 100;
+                        const isSelected = year === selectedYear;
+                        return (
+                          <div key={year} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <span className="fr-text--xs fr-text--bold" style={{ marginBottom: '4px' }}>{count}</span>
+                            <div
+                              style={{
+                                width: '100%',
+                                height: `${heightPct}%`,
+                                minHeight: '4px',
+                                backgroundColor: isSelected ? 'var(--background-action-high-blue-france)' : 'var(--background-contrast-grey)',
+                                borderRadius: '2px'
+                              }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      {tdHistory.map(({ year }) => (
+                        <div key={year} style={{ flex: 1, textAlign: 'center' }}>
+                          <span className="fr-text--xs">{year}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Légende et Qualité des données */}
           <div className="fr-grid-row fr-grid-row--gutters fr-mb-4w" style={{ alignItems: 'stretch' }}>
             <div className="fr-col-12 fr-col-md-6" style={{ display: 'flex' }}>
               <div className="fr-callout fr-callout--green-tilleul-verveine" style={{ flex: 1, marginBottom: 0 }}>
-                <p className="fr-callout__title">Légende</p>
+                <p className="fr-callout__title">Légende du tableau</p>
                 <div className="fr-callout__text">
-                  <p className="fr-mb-1w"><strong>Couleurs des lignes :</strong></p>
-                  <ul className="fr-mb-0">
-                    <li><span className="spe-legend-color spe-legend-color--error">Rouge</span> : Information à corriger</li>
-                    <li><span className="spe-legend-color spe-legend-color--warning">Jaune</span> : Télédéclaration à effectuer</li>
-                    <li><span className="spe-legend-color spe-legend-color--success">Vert</span> : Télédéclaration effectuée</li>
+                  <p className="fr-mb-1w"><strong>Icônes utilisées :</strong></p>
+                  <ul className="fr-mb-0" style={{ listStyle: 'none', paddingLeft: 0 }}>
+                    <li className="fr-mb-1v">
+                      <span className="fr-icon-warning-fill fr-icon--sm" style={{ color: 'var(--text-default-error)' }} aria-hidden="true"></span>
+                      {' '}Information à corriger
+                    </li>
+                    <li className="fr-mb-1v">
+                      <span className="fr-icon-close-circle-fill fr-icon--sm" style={{ color: 'var(--text-default-error)' }} aria-hidden="true"></span>
+                      {' '}Télédéclaration à effectuer
+                    </li>
+                    <li className="fr-mb-1v">
+                      <span className="fr-icon-checkbox-circle-fill fr-icon--sm" style={{ color: 'var(--text-default-success)' }} aria-hidden="true"></span>
+                      {' '}Télédéclaration effectuée
+                    </li>
                   </ul>
                 </div>
               </div>
@@ -992,70 +1065,6 @@ export function App() {
               </div>
             </div>
           </div>
-
-          {/* Statistiques agrégées EGalim */}
-          {isTDDataAvailable && egalimStats.totalWithData > 0 && (
-            <div className="fr-grid-row fr-grid-row--gutters fr-mb-4w" style={{ alignItems: 'stretch' }}>
-              <div className="fr-col-12 fr-col-md-6" style={{ display: 'flex' }}>
-                <div className="fr-callout" style={{ flex: 1, marginBottom: 0 }}>
-                  <p className="fr-callout__title">Statistiques agrégées EGalim ({selectedYear})</p>
-                  <div className="fr-callout__text">
-                    <p className="fr-mb-2w">
-                      <span className={egalimStats.bio.count > 0 ? 'spe-stat-value--success' : 'spe-stat-value--warning'}>
-                        {egalimStats.bio.pct} % ({egalimStats.bio.count})
-                      </span>
-                      {' '}des établissements atteignent l'objectif d'approvisionnement en produits bio ({EGALIM_OBJECTIVES.bio} %)
-                    </p>
-                    <p className="fr-mb-0">
-                      <span className={egalimStats.durable.count > 0 ? 'spe-stat-value--success' : 'spe-stat-value--warning'}>
-                        {egalimStats.durable.pct} % ({egalimStats.durable.count})
-                      </span>
-                      {' '}des établissements atteignent l'objectif d'approvisionnement en produits durables et de qualité, dont bio ({EGALIM_OBJECTIVES.durable} %)
-                    </p>
-                    <p className="fr-text--xs fr-mt-2w fr-mb-0" style={{ color: '#666' }}>
-                      Basé sur {egalimStats.totalWithData} établissements ayant télédéclaré
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="fr-col-12 fr-col-md-6" style={{ display: 'flex' }}>
-                <div className="fr-callout" style={{ flex: 1, marginBottom: 0 }}>
-                  <p className="fr-callout__title">Évolution des télédéclarations</p>
-                  <div className="fr-callout__text">
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', height: '100px', marginBottom: '0.5rem' }}>
-                      {tdHistory.map(({ year, count }) => {
-                        const maxCount = Math.max(...tdHistory.map(h => h.count), 1);
-                        const heightPct = (count / maxCount) * 100;
-                        const isSelected = year === selectedYear;
-                        return (
-                          <div key={year} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                            <span className="fr-text--xs fr-text--bold" style={{ marginBottom: '4px' }}>{count}</span>
-                            <div
-                              style={{
-                                width: '100%',
-                                height: `${heightPct}%`,
-                                minHeight: '4px',
-                                backgroundColor: isSelected ? 'var(--background-action-high-blue-france)' : 'var(--background-contrast-grey)',
-                                borderRadius: '2px'
-                              }}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      {tdHistory.map(({ year }) => (
-                        <div key={year} style={{ flex: 1, textAlign: 'center' }}>
-                          <span className="fr-text--xs">{year}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Tableau des établissements */}
           <div className="fr-mb-4w">

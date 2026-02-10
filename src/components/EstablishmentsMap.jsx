@@ -508,9 +508,9 @@ const TerritoryMap = ({ establishments, territory, config, isInset = false, comp
         center={config.center}
         zoom={config.zoom}
         style={mapStyle}
-        scrollWheelZoom={!isInset}
-        dragging={!isInset}
-        zoomControl={!isInset}
+        scrollWheelZoom={true}
+        dragging={true}
+        zoomControl={true}
         attributionControl={!isInset}
       >
         <TileLayerCmp

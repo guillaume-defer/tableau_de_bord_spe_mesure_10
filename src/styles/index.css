@@ -280,7 +280,7 @@
 }
 
 /* ============================================
-   TABLEAU DES ÉTABLISSEMENTS - Layout fixe
+   TABLEAU DES ÉTABLISSEMENTS - Layout auto
    Surcharge DSFR pour éviter le chevauchement
    ============================================ */
 
@@ -297,104 +297,34 @@
   overflow: visible !important;
 }
 
-/* Force le tableau à avoir une largeur minimale */
+/* Tableau avec layout auto pour éviter les colonnes fantômes */
 .fr-table .fr-table__content table {
-  min-width: 1600px !important;
-  table-layout: fixed !important;
-  width: 100% !important;
+  table-layout: auto !important;
+  width: max-content !important;
+  min-width: 100% !important;
 }
 
 /* Cellules : empêcher le chevauchement */
 .fr-table .fr-table__content table th,
 .fr-table .fr-table__content table td {
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
   vertical-align: middle !important;
   padding: 0.75rem 0.5rem !important;
-}
-
-/* Largeurs des colonnes du tableau établissements */
-/* Colonne 1: Nom */
-.fr-table .fr-table__content table th:nth-child(1),
-.fr-table .fr-table__content table td:nth-child(1) {
-  width: 220px !important;
-  min-width: 220px !important;
-  max-width: 220px !important;
-  white-space: normal !important;
-  word-wrap: break-word !important;
-}
-
-/* Colonne 2: SIRET */
-.fr-table .fr-table__content table th:nth-child(2),
-.fr-table .fr-table__content table td:nth-child(2) {
-  width: 140px !important;
-  min-width: 140px !important;
-  max-width: 140px !important;
   white-space: nowrap !important;
 }
 
-/* Colonne 3: Ville */
-.fr-table .fr-table__content table th:nth-child(3),
-.fr-table .fr-table__content table td:nth-child(3) {
-  width: 160px !important;
-  min-width: 160px !important;
-  max-width: 160px !important;
+/* Colonnes avec texte long : autoriser le retour à la ligne */
+.fr-table .fr-table__content table td.spe-word-break {
   white-space: normal !important;
-}
-
-/* Colonne 4: Département */
-.fr-table .fr-table__content table th:nth-child(4),
-.fr-table .fr-table__content table td:nth-child(4) {
-  width: 140px !important;
-  min-width: 140px !important;
-  max-width: 140px !important;
-  white-space: normal !important;
-}
-
-/* Colonne 5: Secteur */
-.fr-table .fr-table__content table th:nth-child(5),
-.fr-table .fr-table__content table td:nth-child(5) {
-  width: 250px !important;
-  min-width: 250px !important;
+  word-wrap: break-word !important;
   max-width: 250px !important;
-  white-space: normal !important;
-  word-wrap: break-word !important;
 }
 
-/* Colonne 6: Type gestion */
-.fr-table .fr-table__content table th:nth-child(6),
-.fr-table .fr-table__content table td:nth-child(6) {
-  width: 130px !important;
+/* Colonne SIRET : largeur suffisante pour 14 chiffres */
+.fr-table .fr-table__content table td.spe-text-mono {
   min-width: 130px !important;
-  max-width: 130px !important;
-  white-space: normal !important;
-}
-
-/* Colonne 7: Modèle éco. */
-.fr-table .fr-table__content table th:nth-child(7),
-.fr-table .fr-table__content table td:nth-child(7) {
-  width: 100px !important;
-  min-width: 100px !important;
-  max-width: 100px !important;
-}
-
-/* Colonne 8: Actif */
-.fr-table .fr-table__content table th:nth-child(8),
-.fr-table .fr-table__content table td:nth-child(8) {
-  width: 70px !important;
-  min-width: 70px !important;
-  max-width: 70px !important;
-  text-align: center !important;
-}
-
-/* Colonnes années et pourcentages (à partir de la 9e colonne) */
-.fr-table .fr-table__content table th:nth-child(n+9),
-.fr-table .fr-table__content table td:nth-child(n+9) {
-  width: 80px !important;
-  min-width: 80px !important;
-  max-width: 80px !important;
-  text-align: center !important;
-  white-space: nowrap !important;
+  font-family: monospace !important;
+  font-size: 0.8125rem !important;
+  letter-spacing: 0.02em !important;
 }
 
 /* Utilitaires */
