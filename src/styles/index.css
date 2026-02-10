@@ -327,6 +327,20 @@
   letter-spacing: 0.02em !important;
 }
 
+/* Colonnes Modèle éco. et Actif : largeurs fixes pour éviter chevauchement */
+.fr-table .fr-table__content table th:nth-child(7),
+.fr-table .fr-table__content table td:nth-child(7) {
+  min-width: 100px !important;
+  width: 100px !important;
+}
+
+.fr-table .fr-table__content table th:nth-child(8),
+.fr-table .fr-table__content table td:nth-child(8) {
+  min-width: 70px !important;
+  width: 70px !important;
+  text-align: center !important;
+}
+
 /* Utilitaires */
 .spe-text-mono {
   font-family: monospace;

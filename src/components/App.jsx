@@ -830,38 +830,18 @@ export function App() {
                 <div className="fr-callout" style={{ flex: 1, marginBottom: 0 }}>
                   <p className="fr-callout__title">Évolution des télédéclarations</p>
                   <div className="fr-callout__text">
-                    {(() => {
-                      const maxCount = Math.max(...tdHistory.map(h => h.count), 1);
-                      const chartHeight = 120;
-                      return (
-                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', height: `${chartHeight}px`, marginBottom: '0.5rem' }}>
-                          {tdHistory.map(({ year, count }) => {
-                            const barHeight = Math.max((count / maxCount) * (chartHeight - 24), 8);
-                            const isSelected = year === selectedYear;
-                            return (
-                              <div key={year} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
-                                <span className="fr-text--xs fr-text--bold" style={{ marginBottom: '4px' }}>{count}</span>
-                                <div
-                                  style={{
-                                    width: '80%',
-                                    height: `${barHeight}px`,
-                                    backgroundColor: isSelected ? 'var(--background-action-high-blue-france)' : 'var(--background-contrast-grey)',
-                                    borderRadius: '4px 4px 0 0'
-                                  }}
-                                />
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
-                    <div style={{ display: 'flex', gap: '0.75rem' }}>
-                      {tdHistory.map(({ year }) => (
-                        <div key={year} style={{ flex: 1, textAlign: 'center' }}>
-                          <span className="fr-text--xs">{year}</span>
-                        </div>
+                    <ul className="fr-mb-0" style={{ listStyle: 'none', paddingLeft: 0 }}>
+                      {tdHistory.map(({ year, count }) => (
+                        <li key={year} className="fr-mb-1v" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span className={year === selectedYear ? 'fr-text--bold' : ''}>
+                            {year === selectedYear ? `${year} (année sélectionnée)` : year}
+                          </span>
+                          <span className={`fr-badge ${year === selectedYear ? 'fr-badge--blue-france' : 'fr-badge--grey'}`}>
+                            {count} télédéclaration{count > 1 ? 's' : ''}
+                          </span>
+                        </li>
                       ))}
-                    </div>
+                    </ul>
                   </div>
                 </div>
               </div>
@@ -1012,8 +992,8 @@ export function App() {
                     <th scope="col">Département</th>
                     <th scope="col">Secteur</th>
                     <th scope="col">Type gestion</th>
-                    <th scope="col">Modèle éco.</th>
-                    <th scope="col" style={{ textAlign: 'center' }}>Actif</th>
+                    <th scope="col" style={{ minWidth: '100px' }}>Modèle éco.</th>
+                    <th scope="col" style={{ textAlign: 'center', minWidth: '70px' }}>Actif</th>
                     {availableYears.map(y => (
                       <th key={y} scope="col" style={{ textAlign: 'center' }}>{y}</th>
                     ))}
@@ -1051,7 +1031,7 @@ export function App() {
                           translateManagementType(row.management_type)
                         )}
                       </td>
-                      <td>
+                      <td style={{ minWidth: '100px' }}>
                         {isMissing(row.economic_model) ? (
                           <span className="spe-text-error"><span className="fr-icon-warning-fill fr-icon--sm" aria-hidden="true"></span> -</span>
                         ) : row.economic_model !== 'public' ? (
@@ -1060,7 +1040,7 @@ export function App() {
                           <span style={{ color: 'var(--text-default-success)' }}>public</span>
                         )}
                       </td>
-                      <td style={{ textAlign: 'center' }}>
+                      <td style={{ textAlign: 'center', minWidth: '70px' }}>
                         {isTrueValue(row.active_on_ma_cantine) ? (
                           <span style={{ color: 'var(--text-default-success)' }}>oui</span>
                         ) : (
