@@ -4,7 +4,6 @@ import { API_PROXY } from '../utils/constants';
 export function CampaignBanner() {
   const [campaign, setCampaign] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchCampaign = async () => {
@@ -21,13 +20,10 @@ export function CampaignBanner() {
           console.log('[CampaignBanner] Response:', data);
           setCampaign(data);
         } else {
-          const errorText = await response.text();
-          console.error('[CampaignBanner] API error:', response.status, errorText);
-          setError(`Erreur API: ${response.status}`);
+          console.error('[CampaignBanner] API error:', response.status);
         }
       } catch (e) {
         console.error('[CampaignBanner] Fetch error:', e);
-        setError(e.message);
       } finally {
         setLoading(false);
       }
@@ -38,12 +34,6 @@ export function CampaignBanner() {
 
   // Ne rien afficher pendant le chargement
   if (loading) return null;
-
-  // En cas d'erreur, ne rien afficher (le bandeau n'est pas critique)
-  if (error) {
-    console.warn('[CampaignBanner] Erreur, bandeau non affiché:', error);
-    return null;
-  }
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '';
@@ -86,7 +76,7 @@ export function CampaignBanner() {
     );
   }
 
-  // Campagne fermée : afficher lien vers les rapports
+  // Campagne fermée ou erreur API : afficher lien vers les rapports
   return (
     <div className="fr-notice fr-notice--info fr-mb-4w">
       <div className="fr-container">
