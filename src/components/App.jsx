@@ -136,8 +136,8 @@ export function App() {
   // Date de mise à jour (utiliser created_at de l'API tabular pour cohérence avec data.gouv.fr)
   useEffect(() => {
     const fetchLastUpdate = async () => {
+      // Priorité 1: Date de disponibilité dans l'API tabular (cohérent avec le site data.gouv.fr)
       try {
-        // Priorité 1: Date de disponibilité dans l'API tabular (cohérent avec le site data.gouv.fr)
         const tabularResponse = await fetch(`https://tabular-api.data.gouv.fr/api/resources/${DATAGOUV_RESOURCE_ID}/`);
         if (tabularResponse.ok) {
           const tabularData = await tabularResponse.json();
@@ -146,8 +146,12 @@ export function App() {
             return;
           }
         }
+      } catch (e) {
+        console.warn('API tabular non accessible (CORS), fallback dataset API');
+      }
 
-        // Fallback: last_update du dataset
+      // Fallback: last_update du dataset
+      try {
         const response = await fetch(`https://www.data.gouv.fr/api/1/datasets/${DATAGOUV_DATASET_ID}/`);
         if (response.ok) {
           const data = await response.json();
