@@ -335,10 +335,11 @@ export function App() {
       if (hasError) total++;
     });
 
-    // Score qualité: (établissements avec au moins une erreur / total) * 100
+    // Score qualité: (établissements sans erreur / total) * 100
+    const withoutError = filteredData.length - total;
     const qualityScore = filteredData.length > 0
-      ? Math.round((total / filteredData.length) * 100)
-      : 0;
+      ? Math.round((withoutError / filteredData.length) * 100)
+      : 100;
 
     return { errors, total, qualityScore };
   }, [filteredData]);
@@ -862,12 +863,12 @@ export function App() {
                   Qualité des données
                   <span
                     className={`fr-badge ${
-                      errorStats.qualityScore <= 10 ? 'fr-badge--success' :
-                      errorStats.qualityScore <= 30 ? 'fr-badge--warning' :
+                      errorStats.qualityScore >= 90 ? 'fr-badge--success' :
+                      errorStats.qualityScore >= 70 ? 'fr-badge--warning' :
                       'fr-badge--error'
                     }`}
                   >
-                    {errorStats.qualityScore}% avec erreurs
+                    {errorStats.qualityScore}%
                   </span>
                 </p>
                 <div className="fr-callout__text">
