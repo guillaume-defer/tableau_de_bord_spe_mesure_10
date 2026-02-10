@@ -558,138 +558,6 @@ export function App() {
     }
   };
 
-  // Export CSV enrichi avec historique EGalim
-  const handleEnrichedExport = async () => {
-    setDownloading('enriched');
-
-    try {
-      // Charger les télédéclarations pour toutes les années disponibles
-      const allYearsTD = {};
-      const yearsWithData = Object.keys(TD_RESOURCES);
-
-      for (const year of yearsWithData) {
-        try {
-          const params = new URLSearchParams();
-          params.append('source', 'teledeclarations');
-          params.append('td_year', year);
-          if (mode === 'ministere') {
-            params.append('canteen_line_ministry__exact', selectedMinistere);
-          } else {
-            params.append('canteen_line_ministry__exact', "Préfecture - Administration Territoriale de l'État (ATE)");
-            params.append('canteen_region_lib__exact', selectedRegion);
-          }
-          params.append('page_size', '1000');
-
-          const response = await fetch(`${API_PROXY}?${params.toString()}`);
-          if (response.ok) {
-            const result = await response.json();
-            (result.data || []).forEach(td => {
-              const siret = td.canteen_siret;
-              if (siret) {
-                if (!allYearsTD[siret]) allYearsTD[siret] = {};
-                allYearsTD[siret][year] = {
-                  ratio_bio: td.teledeclaration_ratio_bio,
-                  ratio_egalim: td.teledeclaration_ratio_egalim_hors_bio
-                };
-              }
-            });
-          }
-        } catch (e) {
-          console.warn(`Erreur chargement TD ${year}:`, e);
-        }
-      }
-
-      // Générer le CSV
-      const headers = [
-        'SIRET', 'Nom', 'Ville', 'Département', 'Région', 'Secteur',
-        'Type gestion', 'Modèle économique', 'Actif sur ma cantine'
-      ];
-
-      // Ajouter les colonnes par année
-      yearsWithData.forEach(year => {
-        headers.push(`% Bio ${year}`);
-        headers.push(`% Qualité hors bio ${year}`);
-        headers.push(`% EGalim total ${year}`);
-      });
-
-      headers.push('Écart Bio vs objectif (20%)');
-      headers.push('Écart EGalim vs objectif (50%)');
-      headers.push('Statut Bio');
-      headers.push('Statut EGalim');
-
-      const rows = filteredData.map(row => {
-        const line = [
-          row.siret || '',
-          (row.name || '').replace(/"/g, '""'),
-          (row.city || '').replace(/"/g, '""'),
-          row.department_lib || '',
-          row.region_lib || '',
-          (row.sector_list || '').replace(/"/g, '""'),
-          translateManagementType(row.management_type) || '',
-          row.economic_model || '',
-          isTrueValue(row.active_on_ma_cantine) ? 'Oui' : 'Non'
-        ];
-
-        // Dernières valeurs connues pour calculer l'écart
-        let lastBio = null;
-        let lastTotal = null;
-
-        yearsWithData.forEach(year => {
-          const td = allYearsTD[row.siret]?.[year];
-          if (td) {
-            const bio = td.ratio_bio !== null ? (Number(td.ratio_bio) * 100).toFixed(1) : '';
-            const egalim = td.ratio_egalim !== null ? (Number(td.ratio_egalim) * 100).toFixed(1) : '';
-            const total = (td.ratio_bio !== null || td.ratio_egalim !== null)
-              ? ((Number(td.ratio_bio || 0) + Number(td.ratio_egalim || 0)) * 100).toFixed(1)
-              : '';
-
-            line.push(bio);
-            line.push(egalim);
-            line.push(total);
-
-            if (bio !== '') lastBio = Number(td.ratio_bio) * 100;
-            if (total !== '') lastTotal = (Number(td.ratio_bio || 0) + Number(td.ratio_egalim || 0)) * 100;
-          } else {
-            line.push('', '', '');
-          }
-        });
-
-        // Écarts et statuts basés sur la dernière année avec données
-        const ecartBio = lastBio !== null ? (lastBio - EGALIM_OBJECTIVES.bio).toFixed(1) : '';
-        const ecartTotal = lastTotal !== null ? (lastTotal - EGALIM_OBJECTIVES.durable).toFixed(1) : '';
-        const statutBio = lastBio !== null ? (lastBio >= EGALIM_OBJECTIVES.bio ? 'Conforme' : 'À améliorer') : '';
-        const statutTotal = lastTotal !== null ? (lastTotal >= EGALIM_OBJECTIVES.durable ? 'Conforme' : 'À améliorer') : '';
-
-        line.push(ecartBio, ecartTotal, statutBio, statutTotal);
-        return line;
-      });
-
-      // Construire le CSV
-      const csvContent = [
-        headers.map(h => `"${h}"`).join(';'),
-        ...rows.map(r => r.map(c => `"${c}"`).join(';'))
-      ].join('\n');
-
-      // Télécharger
-      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      const filename = mode === 'ministere'
-        ? `export_enrichi_${normalizeFilename(selectedMinistere)}.csv`
-        : `export_enrichi_${normalizeFilename(selectedRegion)}.csv`;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (e) {
-      console.error('Erreur export enrichi:', e);
-    } finally {
-      setDownloading(null);
-    }
-  };
-
   // ==========================================
   // RENDU
   // ==========================================
@@ -940,18 +808,18 @@ export function App() {
                   <p className="fr-callout__title">Statistiques agrégées EGalim ({selectedYear})</p>
                   <div className="fr-callout__text">
                     <p className="fr-mb-2w">
-                      <span className={egalimStats.bio.count > 0 ? 'spe-stat-value--success' : 'spe-stat-value--warning'}>
+                      <span style={{ color: Number(egalimStats.bio.pct) === 100 ? 'var(--text-default-success)' : 'var(--text-default-error)', fontWeight: 700 }}>
                         {egalimStats.bio.pct} % ({egalimStats.bio.count})
                       </span>
                       {' '}des établissements atteignent l'objectif d'approvisionnement en produits bio ({EGALIM_OBJECTIVES.bio} %)
                     </p>
                     <p className="fr-mb-0">
-                      <span className={egalimStats.durable.count > 0 ? 'spe-stat-value--success' : 'spe-stat-value--warning'}>
+                      <span style={{ color: Number(egalimStats.durable.pct) === 100 ? 'var(--text-default-success)' : 'var(--text-default-error)', fontWeight: 700 }}>
                         {egalimStats.durable.pct} % ({egalimStats.durable.count})
                       </span>
                       {' '}des établissements atteignent l'objectif d'approvisionnement en produits durables et de qualité, dont bio ({EGALIM_OBJECTIVES.durable} %)
                     </p>
-                    <p className="fr-text--xs fr-mt-2w fr-mb-0" style={{ color: '#666' }}>
+                    <p className="fr-text--xs fr-mt-2w fr-mb-0" style={{ color: 'var(--text-mention-grey)' }}>
                       Basé sur {egalimStats.totalWithData} établissements ayant télédéclaré
                     </p>
                   </div>
@@ -962,28 +830,32 @@ export function App() {
                 <div className="fr-callout" style={{ flex: 1, marginBottom: 0 }}>
                   <p className="fr-callout__title">Évolution des télédéclarations</p>
                   <div className="fr-callout__text">
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', height: '150px', marginBottom: '0.5rem' }}>
-                      {tdHistory.map(({ year, count }) => {
-                        const maxCount = Math.max(...tdHistory.map(h => h.count), 1);
-                        const heightPct = (count / maxCount) * 100;
-                        const isSelected = year === selectedYear;
-                        return (
-                          <div key={year} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                            <span className="fr-text--xs fr-text--bold" style={{ marginBottom: '4px' }}>{count}</span>
-                            <div
-                              style={{
-                                width: '100%',
-                                height: `${heightPct}%`,
-                                minHeight: '4px',
-                                backgroundColor: isSelected ? 'var(--background-action-high-blue-france)' : 'var(--background-contrast-grey)',
-                                borderRadius: '2px'
-                              }}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    {(() => {
+                      const maxCount = Math.max(...tdHistory.map(h => h.count), 1);
+                      const chartHeight = 120;
+                      return (
+                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', height: `${chartHeight}px`, marginBottom: '0.5rem' }}>
+                          {tdHistory.map(({ year, count }) => {
+                            const barHeight = Math.max((count / maxCount) * (chartHeight - 24), 8);
+                            const isSelected = year === selectedYear;
+                            return (
+                              <div key={year} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
+                                <span className="fr-text--xs fr-text--bold" style={{ marginBottom: '4px' }}>{count}</span>
+                                <div
+                                  style={{
+                                    width: '80%',
+                                    height: `${barHeight}px`,
+                                    backgroundColor: isSelected ? 'var(--background-action-high-blue-france)' : 'var(--background-contrast-grey)',
+                                    borderRadius: '4px 4px 0 0'
+                                  }}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                    <div style={{ display: 'flex', gap: '0.75rem' }}>
                       {tdHistory.map(({ year }) => (
                         <div key={year} style={{ flex: 1, textAlign: 'center' }}>
                           <span className="fr-text--xs">{year}</span>
@@ -1116,18 +988,6 @@ export function App() {
                       disabled={downloading !== null}
                     >
                       {downloading === 'teledeclarations' ? 'Téléchargement...' : 'Télécharger les télédéclarations (CSV)'}
-                    </button>
-                  </div>
-                )}
-                {isTDDataAvailable && (
-                  <div className="fr-col-auto">
-                    <button
-                      className="fr-btn fr-btn--secondary fr-btn--sm fr-btn--icon-left fr-icon-download-line"
-                      onClick={handleEnrichedExport}
-                      disabled={downloading !== null}
-                      title="CSV avec historique EGalim par année, écarts par rapport aux objectifs et statut de conformité"
-                    >
-                      {downloading === 'enriched' ? 'Téléchargement...' : 'Télécharger le CSV enrichi'}
                     </button>
                   </div>
                 )}
