@@ -11,8 +11,7 @@ Permettre le suivi en temps réel des établissements de restauration collective
 - **Vue Ministère** : Suivi par ministère de tutelle
 - **Vue ATE Région** : Suivi par région (Administration Territoriale de l'État)
 - **Indicateurs clés** : Taux d'inscription, comptes actifs, couverts moyens
-- **Classification SPE** : Identification automatique des établissements selon leur périmètre SPE
-- **Données EGAlim** : Affichage des taux bio et qualité par établissement
+- **Liste des établissements** : possibilité de consulter les informations des établissements du périmètre et de vérifier la validation de la télédéclaration.
 - **Export** : Téléchargement des données filtrées au format CSV/XLSX
 - **Mode sombre** : Interface adaptée DSFR avec thème clair/sombre
 
