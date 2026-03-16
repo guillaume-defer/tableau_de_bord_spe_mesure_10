@@ -10,6 +10,8 @@ import {
   MINISTERES,
   REGIONS,
   CIBLE_RIA_DGAFP,
+  CIBLES_ATE,
+  PERIMETRES_SPE,
   AVAILABLE_TD_YEARS,
   TD_RESOURCES,
   API_PAGE_SIZE,
@@ -32,7 +34,7 @@ import {
 export function App() {
   // États
   const [mode, setMode] = useState('ministere');
-  const [selectedMinistere, setSelectedMinistere] = useState('');
+  const [selectedMinisteres, setSelectedMinisteres] = useState([]);
   const [selectedRegion, setSelectedRegion] = useState('');
   const [data, setData] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -45,6 +47,7 @@ export function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSecteurs, setSelectedSecteurs] = useState([]);
   const [downloading, setDownloading] = useState(null);
+  const [showMinistereDropdown, setShowMinistereDropdown] = useState(false);
 
   // Télédéclarations EGalim
   const [teledeclarations, setTeledeclarations] = useState({});
@@ -63,21 +66,21 @@ export function App() {
   // Date de mise à jour (utiliser created_at de l'API tabular pour cohérence avec data.gouv.fr)
   useEffect(() => {
     const fetchLastUpdate = async () => {
-      // Priorité 1: Date de disponibilité dans l'API tabular (cohérent avec le site data.gouv.fr)
+      // Priorité 1: Via proxy pour éviter CORS
       try {
-        const tabularResponse = await fetch(`https://tabular-api.data.gouv.fr/api/resources/${DATAGOUV_RESOURCE_ID}/`);
-        if (tabularResponse.ok) {
-          const tabularData = await tabularResponse.json();
-          if (tabularData.created_at) {
-            setLastUpdate(tabularData.created_at);
+        const proxyResponse = await fetch(`${API_PROXY}?source=resource-meta&resource_id=${DATAGOUV_RESOURCE_ID}&_cb=${Date.now()}`);
+        if (proxyResponse.ok) {
+          const proxyData = await proxyResponse.json();
+          if (proxyData.created_at) {
+            setLastUpdate(proxyData.created_at);
             return;
           }
         }
       } catch (e) {
-        console.warn('API tabular non accessible (CORS), fallback dataset API');
+        console.warn('Proxy resource-meta non accessible, fallback dataset API');
       }
 
-      // Fallback: last_update du dataset
+      // Fallback: last_update du dataset (data.gouv.fr autorise CORS)
       try {
         const response = await fetch(`https://www.data.gouv.fr/api/1/datasets/${DATAGOUV_DATASET_ID}/`);
         if (response.ok) {
@@ -86,7 +89,6 @@ export function App() {
             setLastUpdate(data.last_update);
             return;
           }
-          // Fallback: last_modified de la ressource spécifique
           const resource = data.resources?.find(r => r.id === DATAGOUV_RESOURCE_ID);
           if (resource?.last_modified) {
             setLastUpdate(resource.last_modified);
@@ -99,10 +101,39 @@ export function App() {
     fetchLastUpdate();
   }, []);
 
+  // Fonction pour charger les données d'un seul ministère
+  const fetchMinistryData = async (ministry) => {
+    let allData = [];
+    let currentPage = 1;
+    let hasMore = true;
+    let totalRecords = 0;
+
+    while (hasMore) {
+      const params = new URLSearchParams();
+      params.append('line_ministry__exact', ministry);
+      params.append('page', currentPage);
+      params.append('page_size', API_PAGE_SIZE);
+
+      const response = await fetch(`${API_PROXY}?${params.toString()}`);
+      if (!response.ok) throw new Error(`Erreur API: ${response.status}`);
+
+      const result = await response.json();
+      const pageData = result.data || [];
+      totalRecords = result.meta?.total || result.total_count || 0;
+
+      allData = [...allData, ...pageData];
+      hasMore = allData.length < totalRecords && pageData.length > 0;
+      currentPage++;
+      if (currentPage > 100) break;
+    }
+
+    return { data: allData, total: totalRecords };
+  };
+
   // Données principales
   useEffect(() => {
     const fetchData = async () => {
-      if (mode === 'ministere' && !selectedMinistere) return;
+      if (mode === 'ministere' && selectedMinisteres.length === 0) return;
       if (mode === 'region' && !selectedRegion) return;
 
       setLoading(true);
@@ -111,52 +142,56 @@ export function App() {
 
       try {
         let allData = [];
-        let currentPage = 1;
-        let hasMore = true;
         let totalRecords = 0;
 
-        while (hasMore) {
-          const params = new URLSearchParams();
-
-          if (mode === 'ministere') {
-            params.append('line_ministry__exact', selectedMinistere);
-          } else {
+        if (mode === 'ministere') {
+          // Charger les données de chaque ministère sélectionné en parallèle
+          setLoadingProgress(`Récupération des données pour ${selectedMinisteres.length} périmètre(s)...`);
+          const results = await Promise.all(
+            selectedMinisteres.map(m => fetchMinistryData(m))
+          );
+          results.forEach(r => {
+            allData = [...allData, ...r.data];
+            totalRecords += r.total;
+          });
+        } else {
+          // Mode région ATE
+          let currentPage = 1;
+          let hasMore = true;
+          while (hasMore) {
+            const params = new URLSearchParams();
             params.append('line_ministry__exact', "Préfecture - Administration Territoriale de l'État (ATE)");
             params.append('region_lib__exact', selectedRegion);
-          }
+            params.append('page', currentPage);
+            params.append('page_size', API_PAGE_SIZE);
 
-          params.append('page', currentPage);
-          params.append('page_size', API_PAGE_SIZE);
-
-          if (totalRecords > 0) {
-            const totalPages = Math.ceil(totalRecords / API_PAGE_SIZE);
-            setLoadingProgress(`${allData.length} / ${totalRecords} établissements (page ${currentPage}/${totalPages})`);
-          } else {
-            setLoadingProgress(`Récupération des données...`);
-          }
-
-          const response = await fetch(`${API_PROXY}?${params.toString()}`);
-          if (!response.ok) throw new Error(`Erreur API: ${response.status}`);
-
-          const result = await response.json();
-          const pageData = result.data || [];
-          totalRecords = result.meta?.total || result.total_count || 0;
-
-          if (currentPage === 1) {
-            const years = detectDeclarationColumns(pageData);
-            setAvailableYears(years);
-            if (years.length > 0) {
-              setSelectedYear(years[years.length - 1]);
+            if (totalRecords > 0) {
+              setLoadingProgress(`${allData.length} / ${totalRecords} établissements`);
+            } else {
+              setLoadingProgress(`Récupération des données...`);
             }
+
+            const response = await fetch(`${API_PROXY}?${params.toString()}`);
+            if (!response.ok) throw new Error(`Erreur API: ${response.status}`);
+
+            const result = await response.json();
+            const pageData = result.data || [];
+            totalRecords = result.meta?.total || result.total_count || 0;
+
+            allData = [...allData, ...pageData];
+            hasMore = allData.length < totalRecords && pageData.length > 0;
+            currentPage++;
+            if (currentPage > 100) break;
           }
+        }
 
-          allData = [...allData, ...pageData];
-          setLoadingProgress(`${allData.length} / ${totalRecords}`);
-
-          hasMore = allData.length < totalRecords && pageData.length > 0;
-          currentPage++;
-
-          if (currentPage > 100) break;
+        // Détection des années de déclaration
+        if (allData.length > 0) {
+          const years = detectDeclarationColumns(allData);
+          setAvailableYears(years);
+          if (years.length > 0) {
+            setSelectedYear(years[years.length - 1]);
+          }
         }
 
         setData(allData);
@@ -170,7 +205,37 @@ export function App() {
     };
 
     fetchData();
-  }, [mode, selectedMinistere, selectedRegion]);
+  }, [mode, selectedMinisteres, selectedRegion]);
+
+  // Fonction pour charger les TD d'un seul ministère
+  const fetchMinistryTD = async (ministry, year) => {
+    let allTD = [];
+    let currentPage = 1;
+    let hasMore = true;
+
+    while (hasMore) {
+      const params = new URLSearchParams();
+      params.append('source', 'teledeclarations');
+      params.append('td_year', year);
+      params.append('canteen_line_ministry__exact', ministry);
+      params.append('page', currentPage);
+      params.append('page_size', 50);
+
+      const response = await fetch(`${API_PROXY}?${params.toString()}`);
+      if (!response.ok) break;
+
+      const result = await response.json();
+      const pageData = result.data || [];
+      const total = result.meta?.total || result.total_count || 0;
+
+      allTD = [...allTD, ...pageData];
+      hasMore = allTD.length < total && pageData.length > 0;
+      currentPage++;
+      if (currentPage > 50) break;
+    }
+
+    return allTD;
+  };
 
   // Charger les télédéclarations après le chargement des données principales
   useEffect(() => {
@@ -182,36 +247,37 @@ export function App() {
 
       try {
         let allTD = [];
-        let currentPage = 1;
-        let hasMore = true;
 
-        while (hasMore) {
-          const params = new URLSearchParams();
-          params.append('source', 'teledeclarations');
-          params.append('td_year', selectedYear);
-
-          if (mode === 'ministere') {
-            params.append('canteen_line_ministry__exact', selectedMinistere);
-          } else {
+        if (mode === 'ministere') {
+          const results = await Promise.all(
+            selectedMinisteres.map(m => fetchMinistryTD(m, selectedYear))
+          );
+          results.forEach(r => { allTD = [...allTD, ...r]; });
+        } else {
+          // Mode région ATE
+          let currentPage = 1;
+          let hasMore = true;
+          while (hasMore) {
+            const params = new URLSearchParams();
+            params.append('source', 'teledeclarations');
+            params.append('td_year', selectedYear);
             params.append('canteen_line_ministry__exact', "Préfecture - Administration Territoriale de l'État (ATE)");
             params.append('canteen_region_lib__exact', selectedRegion);
+            params.append('page', currentPage);
+            params.append('page_size', 50);
+
+            const response = await fetch(`${API_PROXY}?${params.toString()}`);
+            if (!response.ok) break;
+
+            const result = await response.json();
+            const pageData = result.data || [];
+            const total = result.meta?.total || result.total_count || 0;
+
+            allTD = [...allTD, ...pageData];
+            hasMore = allTD.length < total && pageData.length > 0;
+            currentPage++;
+            if (currentPage > 50) break;
           }
-
-          params.append('page', currentPage);
-          params.append('page_size', 50);
-
-          const response = await fetch(`${API_PROXY}?${params.toString()}`);
-          if (!response.ok) break;
-
-          const result = await response.json();
-          const pageData = result.data || [];
-          const total = result.meta?.total || result.total_count || 0;
-
-          allTD = [...allTD, ...pageData];
-          hasMore = allTD.length < total && pageData.length > 0;
-          currentPage++;
-
-          if (currentPage > 50) break;
         }
 
         allTD.forEach(td => {
@@ -235,7 +301,7 @@ export function App() {
     };
 
     fetchTeledeclarations();
-  }, [data, mode, selectedMinistere, selectedRegion, selectedYear]);
+  }, [data, mode, selectedMinisteres, selectedRegion, selectedYear]);
 
   // ==========================================
   // DONNÉES FILTRÉES ET STATISTIQUES
@@ -305,10 +371,40 @@ export function App() {
       const sector = row.sector_list || '';
       return sector.includes('RIA') || sector.includes('inter-administratif');
     }).length;
-    const cible = CIBLE_RIA_DGAFP[selectedRegion] || 0;
-    const pct = cible > 0 ? ((riaCount / cible) * 100).toFixed(1) : 0;
-    return { count: riaCount, cible, pct };
+    const cibleRia = CIBLE_RIA_DGAFP[selectedRegion] || 0;
+    const cibleTotal = CIBLES_ATE[selectedRegion] || 0;
+    const pctRia = cibleRia > 0 ? ((riaCount / cibleRia) * 100).toFixed(1) : 0;
+    const pctTotal = cibleTotal > 0 ? ((filteredData.length / cibleTotal) * 100).toFixed(1) : 0;
+    return { count: riaCount, cibleRia, pctRia, cibleTotal, totalCount: filteredData.length, pctTotal };
   }, [mode, selectedRegion, filteredData]);
+
+  // Cible périmètre ministériel (mode ministère)
+  const perimetreCible = useMemo(() => {
+    if (mode !== 'ministere' || selectedMinisteres.length === 0) return null;
+    // Trouver le périmètre SPE qui correspond aux ministères sélectionnés
+    const matching = PERIMETRES_SPE.find(p =>
+      p.ministeres.length === selectedMinisteres.length &&
+      p.ministeres.every(m => selectedMinisteres.includes(m))
+    );
+    if (matching && matching.cible) {
+      const pct = ((filteredData.length / matching.cible) * 100).toFixed(1);
+      return { ...matching, actual: filteredData.length, pct };
+    }
+    // Sinon, additionner les cibles des périmètres dont tous les ministères sont sélectionnés
+    let totalCible = 0;
+    let hasAnyCible = false;
+    PERIMETRES_SPE.forEach(p => {
+      if (p.cible && p.ministeres.every(m => selectedMinisteres.includes(m))) {
+        totalCible += p.cible;
+        hasAnyCible = true;
+      }
+    });
+    if (hasAnyCible) {
+      const pct = ((filteredData.length / totalCible) * 100).toFixed(1);
+      return { label: 'Périmètres sélectionnés', cible: totalCible, actual: filteredData.length, pct, confidence: 'en cours' };
+    }
+    return null;
+  }, [mode, selectedMinisteres, filteredData]);
 
   // Stats erreurs avec score qualité
   const errorStats = useMemo(() => {
@@ -475,49 +571,53 @@ export function App() {
     return sortedData.slice(0, displayLimit);
   }, [sortedData, displayLimit]);
 
-  // Export CSV établissements (mémoïsé pour éviter les re-créations)
+  // Export CSV établissements - pour le multi-select, on ne peut exporter qu'un seul ministère à la fois via l'API CSV
+  // On génère l'URL du premier ministère sélectionné uniquement
   const exportUrl = useMemo(() => {
     const params = new URLSearchParams();
-    if (mode === 'ministere') {
-      params.append('line_ministry__exact', selectedMinistere);
+    if (mode === 'ministere' && selectedMinisteres.length > 0) {
+      params.append('line_ministry__exact', selectedMinisteres[0]);
     } else {
       params.append('line_ministry__exact', "Préfecture - Administration Territoriale de l'État (ATE)");
       params.append('region_lib__exact', selectedRegion);
     }
     return `https://tabular-api.data.gouv.fr/api/resources/${DATAGOUV_RESOURCE_ID}/data/csv/?${params.toString()}`;
-  }, [mode, selectedMinistere, selectedRegion]);
+  }, [mode, selectedMinisteres, selectedRegion]);
 
-  // Nom du fichier établissements (mémoïsé)
   const exportFilename = useMemo(() => {
     if (mode === 'ministere') {
-      return `etablissements_${normalizeFilename(selectedMinistere)}.csv`;
+      const name = selectedMinisteres.length === 1
+        ? normalizeFilename(selectedMinisteres[0])
+        : `${selectedMinisteres.length}_perimetres`;
+      return `etablissements_${name}.csv`;
     } else {
       return `etablissements_${normalizeFilename(selectedRegion)}.csv`;
     }
-  }, [mode, selectedMinistere, selectedRegion]);
+  }, [mode, selectedMinisteres, selectedRegion]);
 
-  // Export CSV télédéclarations (mémoïsé)
   const tdExportUrl = useMemo(() => {
     const resourceId = TD_RESOURCES[selectedYear] || TD_RESOURCES['2024'];
     const params = new URLSearchParams();
-    if (mode === 'ministere') {
-      params.append('canteen_line_ministry__exact', selectedMinistere);
+    if (mode === 'ministere' && selectedMinisteres.length > 0) {
+      params.append('canteen_line_ministry__exact', selectedMinisteres[0]);
     } else {
       params.append('canteen_line_ministry__exact', "Préfecture - Administration Territoriale de l'État (ATE)");
       params.append('canteen_region_lib__exact', selectedRegion);
     }
     return `https://tabular-api.data.gouv.fr/api/resources/${resourceId}/data/csv/?${params.toString()}`;
-  }, [mode, selectedMinistere, selectedRegion, selectedYear]);
+  }, [mode, selectedMinisteres, selectedRegion, selectedYear]);
 
-  // Nom du fichier TD (mémoïsé)
   const tdExportFilename = useMemo(() => {
     const campagne = parseInt(selectedYear) + 1;
     if (mode === 'ministere') {
-      return `teledeclarations_campagne${campagne}_${normalizeFilename(selectedMinistere)}.csv`;
+      const name = selectedMinisteres.length === 1
+        ? normalizeFilename(selectedMinisteres[0])
+        : `${selectedMinisteres.length}_perimetres`;
+      return `teledeclarations_campagne${campagne}_${name}.csv`;
     } else {
       return `teledeclarations_campagne${campagne}_${normalizeFilename(selectedRegion)}.csv`;
     }
-  }, [mode, selectedMinistere, selectedRegion, selectedYear]);
+  }, [mode, selectedMinisteres, selectedRegion, selectedYear]);
 
   // Fonction de téléchargement
   const handleDownload = async (url, filename, type) => {
@@ -555,6 +655,28 @@ export function App() {
             <a href="https://data.gouv.fr/fr/datasets/registre-national-des-cantines/" target="_blank" rel="noopener noreferrer" title="Registre national des cantines - nouvelle fenêtre">
               Registre national des cantines (data.gouv.fr)
             </a>
+            {' | '}
+            <button
+              type="button"
+              className="fr-link fr-text--sm"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+              onClick={() => {
+                setData([]);
+                setLastUpdate(null);
+                // Re-trigger data fetch by toggling state
+                if (mode === 'ministere' && selectedMinisteres.length > 0) {
+                  const tmp = [...selectedMinisteres];
+                  setSelectedMinisteres([]);
+                  setTimeout(() => setSelectedMinisteres(tmp), 50);
+                } else if (mode === 'region' && selectedRegion) {
+                  const tmp = selectedRegion;
+                  setSelectedRegion('');
+                  setTimeout(() => setSelectedRegion(tmp), 50);
+                }
+              }}
+            >
+              Rafraîchir les données
+            </button>
           </p>
         </div>
       )}
@@ -577,7 +699,7 @@ export function App() {
                   name="segmented-mode"
                   value="ministere"
                   checked={mode === 'ministere'}
-                  onChange={() => { setMode('ministere'); setSelectedRegion(''); setSelectedMinistere(''); setData([]); }}
+                  onChange={() => { setMode('ministere'); setSelectedRegion(''); setSelectedMinisteres([]); setData([]); }}
                 />
                 <label className="fr-label" htmlFor="segmented-mode-ministere">
                   Ministère
@@ -590,7 +712,7 @@ export function App() {
                   name="segmented-mode"
                   value="region"
                   checked={mode === 'region'}
-                  onChange={() => { setMode('region'); setSelectedMinistere(''); setSelectedRegion(''); setData([]); }}
+                  onChange={() => { setMode('region'); setSelectedMinisteres([]); setSelectedRegion(''); setData([]); }}
                 />
                 <label className="fr-label" htmlFor="segmented-mode-region">
                   ATE Région
@@ -602,19 +724,85 @@ export function App() {
 
         <div className="fr-col-12 fr-col-md-4">
           {mode === 'ministere' ? (
-            <div className="fr-select-group">
-              <label className="fr-label" htmlFor="select-ministere">Ministère</label>
-              <select
+            <div className="fr-select-group" style={{ position: 'relative' }}>
+              <label className="fr-label" htmlFor="btn-ministere">Périmètre(s) ministériel(s)</label>
+              <button
+                type="button"
+                id="btn-ministere"
                 className="fr-select"
-                id="select-ministere"
-                value={selectedMinistere}
-                onChange={(e) => { setSelectedMinistere(e.target.value); setData([]); }}
+                style={{ textAlign: 'left', cursor: 'pointer', background: 'var(--background-default-grey)' }}
+                onClick={() => setShowMinistereDropdown(!showMinistereDropdown)}
               >
-                <option value="">Sélectionner un ministère</option>
-                {MINISTERES.map(m => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
+                {selectedMinisteres.length === 0
+                  ? 'Sélectionner un ou plusieurs périmètres'
+                  : `${selectedMinisteres.length} périmètre(s) sélectionné(s)`}
+              </button>
+              {showMinistereDropdown && (
+                <div className="spe-multiselect-dropdown">
+                  {/* Périmètres SPE prédéfinis (groupes) */}
+                  <div className="spe-multiselect-section">
+                    <p className="fr-text--xs fr-text--bold fr-mb-1v" style={{ color: 'var(--text-mention-grey)' }}>Périmètres SPE</p>
+                    {PERIMETRES_SPE.filter(p => p.ministeres.length > 1).map(p => (
+                      <button
+                        key={p.label}
+                        type="button"
+                        className={`spe-multiselect-group-btn ${p.ministeres.every(m => selectedMinisteres.includes(m)) ? 'spe-multiselect-group-btn--active' : ''}`}
+                        onClick={() => {
+                          const allSelected = p.ministeres.every(m => selectedMinisteres.includes(m));
+                          if (allSelected) {
+                            setSelectedMinisteres(prev => prev.filter(m => !p.ministeres.includes(m)));
+                          } else {
+                            setSelectedMinisteres(prev => [...new Set([...prev, ...p.ministeres])]);
+                          }
+                          setData([]);
+                        }}
+                      >
+                        <span className="fr-icon-checkbox-circle-line fr-icon--sm fr-mr-1v" aria-hidden="true"></span>
+                        {p.label} {p.cible ? `(cible: ${p.cible})` : ''}
+                      </button>
+                    ))}
+                  </div>
+                  <hr className="fr-hr fr-my-1v" />
+                  {/* Ministères individuels */}
+                  <div className="spe-multiselect-section">
+                    <p className="fr-text--xs fr-text--bold fr-mb-1v" style={{ color: 'var(--text-mention-grey)' }}>Ministères</p>
+                    {MINISTERES.map(m => (
+                      <label key={m} className="spe-multiselect-item">
+                        <input
+                          type="checkbox"
+                          checked={selectedMinisteres.includes(m)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedMinisteres(prev => [...prev, m]);
+                            } else {
+                              setSelectedMinisteres(prev => prev.filter(x => x !== m));
+                            }
+                            setData([]);
+                          }}
+                        />
+                        <span>{m}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <hr className="fr-hr fr-my-1v" />
+                  <div style={{ display: 'flex', gap: '0.5rem', padding: '0.25rem 0' }}>
+                    <button
+                      type="button"
+                      className="fr-btn fr-btn--sm fr-btn--secondary"
+                      onClick={() => { setShowMinistereDropdown(false); }}
+                    >
+                      Fermer
+                    </button>
+                    <button
+                      type="button"
+                      className="fr-btn fr-btn--sm fr-btn--tertiary-no-outline"
+                      onClick={() => { setSelectedMinisteres([]); setData([]); }}
+                    >
+                      Tout désélectionner
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="fr-select-group">
@@ -650,6 +838,22 @@ export function App() {
           </div>
         </div>
       </div>
+
+      {/* Tags des périmètres sélectionnés */}
+      {mode === 'ministere' && selectedMinisteres.length > 0 && (
+        <div className="fr-tags-group fr-mb-2w">
+          {selectedMinisteres.map(m => (
+            <button
+              key={m}
+              className="fr-tag fr-tag--dismiss"
+              aria-label={`Retirer ${m}`}
+              onClick={() => { setSelectedMinisteres(prev => prev.filter(x => x !== m)); setData([]); }}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Filtre par secteur */}
       {data.length > 0 && availableSecteurs.length > 1 && (
@@ -721,21 +925,68 @@ export function App() {
             </div>
           </div>
 
-          {/* KPI RIA pour ATE */}
-          {mode === 'region' && riaStats && riaStats.cible > 0 && (
-            <div className="fr-alert fr-alert--warning fr-mb-4w">
-              <p className="fr-alert__title">RIA recensés par la DGAFP (cible au 1er novembre 2025)</p>
+          {/* KPI Cible périmètre (mode ministère) */}
+          {mode === 'ministere' && perimetreCible && (
+            <div className="fr-alert fr-alert--info fr-mb-4w">
+              <p className="fr-alert__title">
+                Cible établissements : {perimetreCible.label}
+                {perimetreCible.confidence === 'en cours' && (
+                  <span className="fr-badge fr-badge--sm fr-badge--yellow-tournesol fr-ml-1w">Précision en cours</span>
+                )}
+              </p>
               <p className="fr-text--lg fr-text--bold fr-text--center fr-mt-2w">
-                <span className={riaStats.count >= riaStats.cible ? 'spe-stat-value--success' : 'spe-stat-value--warning'}>
-                  {riaStats.count}
+                <span className={parseFloat(perimetreCible.pct) >= 100 ? 'spe-stat-value--success' : 'spe-stat-value--warning'}>
+                  {perimetreCible.actual}
                 </span>
                 {' / '}
-                {riaStats.cible}
-                {' | '}
-                <span className={riaStats.count >= riaStats.cible ? 'spe-stat-value--success' : 'spe-stat-value--warning'}>
-                  {formatPct(riaStats.pct)}
+                {perimetreCible.cible}
+                {' établissements | '}
+                <span className={parseFloat(perimetreCible.pct) >= 100 ? 'spe-stat-value--success' : 'spe-stat-value--warning'}>
+                  {formatPct(perimetreCible.pct)}
                 </span>
               </p>
+            </div>
+          )}
+
+          {/* KPI RIA et cible ATE (mode région) */}
+          {mode === 'region' && riaStats && (riaStats.cibleRia > 0 || riaStats.cibleTotal > 0) && (
+            <div className="fr-grid-row fr-grid-row--gutters fr-mb-4w">
+              {riaStats.cibleTotal > 0 && (
+                <div className="fr-col-12 fr-col-md-6">
+                  <div className="fr-alert fr-alert--info">
+                    <p className="fr-alert__title">Cible établissements ATE</p>
+                    <p className="fr-text--lg fr-text--bold fr-text--center fr-mt-2w">
+                      <span className={parseFloat(riaStats.pctTotal) >= 100 ? 'spe-stat-value--success' : 'spe-stat-value--warning'}>
+                        {riaStats.totalCount}
+                      </span>
+                      {' / '}
+                      {riaStats.cibleTotal}
+                      {' | '}
+                      <span className={parseFloat(riaStats.pctTotal) >= 100 ? 'spe-stat-value--success' : 'spe-stat-value--warning'}>
+                        {formatPct(riaStats.pctTotal)}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              )}
+              {riaStats.cibleRia > 0 && (
+                <div className="fr-col-12 fr-col-md-6">
+                  <div className="fr-alert fr-alert--warning">
+                    <p className="fr-alert__title">dont RIA recensés (DGAFP)</p>
+                    <p className="fr-text--lg fr-text--bold fr-text--center fr-mt-2w">
+                      <span className={riaStats.count >= riaStats.cibleRia ? 'spe-stat-value--success' : 'spe-stat-value--warning'}>
+                        {riaStats.count}
+                      </span>
+                      {' / '}
+                      {riaStats.cibleRia}
+                      {' | '}
+                      <span className={riaStats.count >= riaStats.cibleRia ? 'spe-stat-value--success' : 'spe-stat-value--warning'}>
+                        {formatPct(riaStats.pctRia)}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1108,7 +1359,7 @@ export function App() {
       )}
 
       {/* État vide */}
-      {!loading && !error && data.length === 0 && (selectedMinistere || selectedRegion) && (
+      {!loading && !error && data.length === 0 && (selectedMinisteres.length > 0 || selectedRegion) && (
         <div className="fr-callout">
           <p className="fr-callout__text">
             Aucun établissement trouvé pour ce périmètre.
@@ -1117,10 +1368,10 @@ export function App() {
       )}
 
       {/* Invitation à sélectionner */}
-      {!loading && !error && !selectedMinistere && !selectedRegion && (
+      {!loading && !error && selectedMinisteres.length === 0 && !selectedRegion && (
         <div className="fr-callout">
           <p className="fr-callout__text">
-            Sélectionnez un ministère ou une région pour afficher les données.
+            Sélectionnez un ou plusieurs ministères, ou une région, pour afficher les données.
           </p>
         </div>
       )}
