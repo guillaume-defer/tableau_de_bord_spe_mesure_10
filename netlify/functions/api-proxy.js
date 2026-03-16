@@ -100,6 +100,46 @@ exports.handler = async (event) => {
     RESOURCE_IDS = CANTINES_RESOURCES;
   }
 
+  // ==========================================
+  // Métadonnées de la ressource (date de mise à jour)
+  // ==========================================
+  if (params.source === 'resource-meta') {
+    const resourceId = params.resource_id || CANTINES_RESOURCES[0];
+    delete params.source;
+    delete params.resource_id;
+
+    const url = `https://tabular-api.data.gouv.fr/api/resources/${resourceId}/`;
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          statusCode: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=300',
+            ...CORS_HEADERS,
+          },
+          body: JSON.stringify(data),
+        };
+      }
+      return {
+        statusCode: response.status,
+        headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+        body: JSON.stringify({ error: `Resource meta API error: ${response.status}` }),
+      };
+    } catch (error) {
+      return {
+        statusCode: 500,
+        headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+        body: JSON.stringify({ error: error.message }),
+      };
+    }
+  }
+
   const queryString = new URLSearchParams(params).toString();
 
   for (const RESOURCE_ID of RESOURCE_IDS) {

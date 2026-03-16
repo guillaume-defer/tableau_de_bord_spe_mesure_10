@@ -165,6 +165,117 @@ export const API_PAGE_SIZE = 50;
 export const INITIAL_DISPLAY_LIMIT = 100;
 
 // ==========================================
+// CIBLES PAR PÉRIMÈTRE MINISTÉRIEL (Source: Notion SPE - Campagne 2026)
+// ==========================================
+// Chaque périmètre SPE peut regrouper plusieurs ministères du registre des cantines.
+// La cible représente le nombre d'établissements attendus.
+// confidence: "ferme" | "en cours" | null (non mesurée)
+export const PERIMETRES_SPE = [
+  {
+    label: "Enseignement supérieur et Recherche",
+    ministeres: ["Enseignement supérieur et Recherche"],
+    cible: 439,
+    confidence: "en cours"
+  },
+  {
+    label: "Justice",
+    ministeres: ["Justice"],
+    cible: 455, // 336 (hors DPJJ) + 119 (DPJJ)
+    confidence: "en cours"
+  },
+  {
+    label: "Intérieur et Outre-mer",
+    ministeres: ["Intérieur et Outre-mer"],
+    cible: 203,
+    confidence: "en cours"
+  },
+  {
+    label: "Économie et finances",
+    ministeres: ["Économie et finances"],
+    cible: 193,
+    confidence: "en cours"
+  },
+  {
+    label: "Ministères sociaux (Santé + Travail)",
+    ministeres: ["Santé et Solidarités", "Travail"],
+    cible: 87,
+    confidence: "en cours"
+  },
+  {
+    label: "Éducation et Jeunesse",
+    ministeres: ["Éducation et Jeunesse"],
+    cible: 52,
+    confidence: "ferme"
+  },
+  {
+    label: "Environnement + Mer + Cohésion des territoires",
+    ministeres: ["Environnement", "Mer", "Cohésion des territoires - Relations avec les collectivités territoriales"],
+    cible: 46,
+    confidence: "ferme"
+  },
+  {
+    label: "Sport",
+    ministeres: ["Sport"],
+    cible: 22,
+    confidence: "ferme"
+  },
+  {
+    label: "Culture",
+    ministeres: ["Culture"],
+    cible: 18,
+    confidence: "ferme"
+  },
+  {
+    label: "Agriculture, Alimentation et Forêts",
+    ministeres: ["Agriculture, Alimentation et Forêts"],
+    cible: 10,
+    confidence: "en cours"
+  },
+  {
+    label: "Services du Premier Ministre",
+    ministeres: ["Services du Premier Ministre"],
+    cible: 5,
+    confidence: "ferme"
+  },
+  {
+    label: "Affaires étrangères",
+    ministeres: ["Affaires étrangères"],
+    cible: 3,
+    confidence: "ferme"
+  },
+  {
+    label: "Présidence de la République - AAI",
+    ministeres: ["Présidence de la république - Autorités indépendantes (AAI, API)"],
+    cible: 3,
+    confidence: "ferme"
+  },
+  {
+    label: "Fonction Publiques",
+    ministeres: ["Fonction Publiques"],
+    cible: null,
+    confidence: null
+  }
+];
+
+// Cibles ATE par région (nombre total d'établissements attendus, incluant RIA + RA)
+// Source: Notion SPE - Campagne 2026
+export const CIBLES_ATE = {
+  "Auvergne-Rhône-Alpes": 12,
+  "Bourgogne-Franche-Comté": 4,
+  "Bretagne": 5,
+  "Centre-Val de Loire": 6,
+  "Corse": 1,
+  "Grand Est": 12,
+  "Hauts-de-France": 5,
+  "Île-de-France": 7,
+  "Normandie": 7,
+  "Nouvelle-Aquitaine": 12,
+  "Occitanie": 10,
+  "Provence-Alpes-Côte d'Azur": 4,
+  "Pays de la Loire": 10
+};
+
+// ==========================================
 // OBJECTIFS EGALIM
 // ==========================================
 // Loi EGalim (art. 24) - Objectifs pour la restauration collective publique
