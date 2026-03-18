@@ -3,8 +3,11 @@
 // ==========================================
 export const API_PROXY = '/.netlify/functions/api-proxy';
 
-// Ressource du Registre National des Cantines (XLSX - le Parquet n'est plus mis à jour depuis le 20/01/2026)
-export const DATAGOUV_RESOURCE_ID = '408dca92-9028-4f66-93bf-f671111393ec';
+// Ressource du Registre National des Cantines
+// CSV (prioritaire) : retraitée quotidiennement par l'API tabulaire de data.gouv.fr
+// XLSX : retraitement parfois en retard de plusieurs jours sur l'API tabulaire
+export const DATAGOUV_RESOURCE_ID = '3f73d129-6b24-45cd-95e9-9bacc216d9d9';
+export const DATAGOUV_RESOURCE_ID_XLSX = '408dca92-9028-4f66-93bf-f671111393ec'; // fallback
 export const DATAGOUV_DATASET_ID = '6482def590d4cf8cea3aa33e';
 
 // Liste des ministères
